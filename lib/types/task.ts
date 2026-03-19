@@ -15,6 +15,8 @@ export type Task = {
   person_name: string;
   project_id: string;
   project_name: string;
+  objective_id: string;
+  objective_name: string;
   description: string;
   task_type?: TaskType;
   status: TaskStatus;
