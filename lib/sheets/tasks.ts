@@ -43,7 +43,13 @@ export async function getAllTasks(): Promise<Task[]> {
   return rows
     .slice(1)
     .filter((row) => row[0])
-    .map(mapRowToTask);
+    .map(mapRowToTask)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export async function getTaskById(taskId: string): Promise<Task | null> {
+  const tasks = await getAllTasks();
+  return tasks.find((task) => task.task_id === taskId) || null;
 }
 
 type GetTasksFilters = {
@@ -157,4 +163,101 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   });
 
   return task;
+}
+
+type UpdateTaskInput = {
+  date: string;
+  person_id: string;
+  person_name: string;
+  project_id: string;
+  project_name: string;
+  objective_id: string;
+  objective_name: string;
+  description: string;
+  task_type: Task["task_type"];
+  status: Task["status"];
+  effort_hours: number;
+  blocker_flag: boolean;
+  blocker_description?: string;
+  insight?: string;
+};
+
+export async function updateTask(
+  taskId: string,
+  input: UpdateTaskInput,
+): Promise<Task> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: TASKS_RANGE,
+  });
+
+  const rows = response.data.values || [];
+
+  if (rows.length <= 1) {
+    throw new Error("No tasks found");
+  }
+
+  const rowIndex = rows.findIndex(
+    (row, index) => index > 0 && row[0] === taskId,
+  );
+
+  if (rowIndex === -1) {
+    throw new Error("Task not found");
+  }
+
+  const currentRow = rows[rowIndex];
+  const now = getNowISOString();
+
+  const updated: Task = {
+    task_id: taskId,
+    date: input.date,
+    person_id: input.person_id,
+    person_name: input.person_name,
+    project_id: input.project_id,
+    project_name: input.project_name,
+    objective_id: input.objective_id,
+    objective_name: input.objective_name,
+    description: input.description,
+    task_type: input.task_type,
+    status: input.status,
+    effort_hours: input.effort_hours,
+    blocker_flag: input.blocker_flag,
+    blocker_description: input.blocker_description || "",
+    insight: input.insight || "",
+    created_at: currentRow[15] || now,
+    updated_at: now,
+  };
+
+  const sheetRowNumber = rowIndex + 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Tasks!A${sheetRowNumber}:Q${sheetRowNumber}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [
+        [
+          updated.task_id,
+          updated.date,
+          updated.person_id,
+          updated.person_name,
+          updated.project_id,
+          updated.project_name,
+          updated.objective_id,
+          updated.objective_name,
+          updated.description,
+          updated.task_type,
+          updated.status,
+          updated.effort_hours,
+          String(updated.blocker_flag),
+          updated.blocker_description,
+          updated.insight,
+          updated.created_at,
+          updated.updated_at,
+        ],
+      ],
+    },
+  });
+
+  return updated;
 }
