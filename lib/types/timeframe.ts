@@ -5,7 +5,6 @@ export type Timeframe = {
   duration_days: number;
   end_date: string;
   created_by?: string;
-  active: boolean;
   created_at: string;
   updated_at: string;
 };

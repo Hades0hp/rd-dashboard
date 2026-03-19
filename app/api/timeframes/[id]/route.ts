@@ -1,47 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createTimeframe,
-  getActiveTimeframe,
-  getAllTimeframes,
-} from "@/lib/sheets/timeframes";
+import { getTimeframeById, updateTimeframe } from "@/lib/sheets/timeframes";
 
 export const runtime = "nodejs";
 
-export async function GET(request: NextRequest) {
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(_request: NextRequest, { params }: Props) {
   try {
-    const { searchParams } = new URL(request.url);
-    const mode = searchParams.get("mode");
+    const { id } = await params;
+    const timeframe = await getTimeframeById(id);
 
-    if (mode === "active") {
-      const timeframe = await getActiveTimeframe();
-
-      return NextResponse.json({
-        success: true,
-        data: timeframe,
-      });
+    if (!timeframe) {
+      return NextResponse.json(
+        { success: false, error: "Timeframe not found" },
+        { status: 404 },
+      );
     }
-
-    const timeframes = await getAllTimeframes();
 
     return NextResponse.json({
       success: true,
-      data: timeframes,
+      data: timeframe,
     });
   } catch (error: any) {
-    console.error("Error reading Timeframes sheet:", error?.message || error);
-
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Failed to read Timeframes sheet",
+        error: error?.message || "Failed to fetch timeframe",
       },
       { status: 500 },
     );
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function PUT(request: NextRequest, { params }: Props) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     if (!body.start_date || !String(body.start_date).trim()) {
@@ -51,7 +46,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const timeframe = await createTimeframe({
+    const updated = await updateTimeframe(id, {
       name: body.name ? String(body.name).trim() : "",
       start_date: String(body.start_date).trim(),
       duration_days: body.duration_days ? Number(body.duration_days) : 7,
@@ -60,15 +55,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: timeframe,
+      data: updated,
     });
   } catch (error: any) {
-    console.error("Error creating timeframe:", error?.message || error);
-
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Failed to create timeframe",
+        error: error?.message || "Failed to update timeframe",
       },
       { status: 500 },
     );
