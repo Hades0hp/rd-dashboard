@@ -1,10 +1,25 @@
-export default function PeoplePage() {
-  return (
-    <main className="min-h-screen p-6">
-      <h1 className="text-3xl font-bold">People</h1>
-      <p className="mt-2 text-slate-600">
-        Team member contribution view will be built here.
-      </p>
-    </main>
-  );
+import { NextResponse } from "next/server";
+import { getAllPeople } from "@/lib/sheets/people";
+
+export const runtime = "nodejs";
+
+export async function GET() {
+  try {
+    const people = await getAllPeople();
+
+    return NextResponse.json({
+      success: true,
+      data: people,
+    });
+  } catch (error: any) {
+    console.error("Error reading People sheet:", error?.message || error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: error?.message || "Failed to read People sheet",
+      },
+      { status: 500 },
+    );
+  }
 }
