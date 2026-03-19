@@ -1,31 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPerson, getAllPeople } from "@/lib/sheets/people";
+import { getPersonById, updatePerson } from "@/lib/sheets/people";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(_request: NextRequest, { params }: Props) {
   try {
-    const people = await getAllPeople();
+    const { id } = await params;
+    const person = await getPersonById(id);
+
+    if (!person) {
+      return NextResponse.json(
+        { success: false, error: "Person not found" },
+        { status: 404 },
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      data: people,
+      data: person,
     });
   } catch (error: any) {
-    console.error("Error reading People sheet:", error?.message || error);
-
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Failed to read People sheet",
+        error: error?.message || "Failed to fetch person",
       },
       { status: 500 },
     );
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function PUT(request: NextRequest, { params }: Props) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     if (!body.name || !String(body.name).trim()) {
@@ -35,7 +46,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const person = await createPerson({
+    const updated = await updatePerson(id, {
       name: String(body.name).trim(),
       role: body.role ? String(body.role).trim() : "",
       email: body.email ? String(body.email).trim() : "",
@@ -44,15 +55,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: person,
+      data: updated,
     });
   } catch (error: any) {
-    console.error("Error creating person:", error?.message || error);
-
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Failed to create person",
+        error: error?.message || "Failed to update person",
       },
       { status: 500 },
     );
