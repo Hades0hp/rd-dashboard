@@ -134,6 +134,36 @@ export default function ProjectDetailPage({
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [tasks]);
 
+  const objectiveTaskSummary = useMemo(() => {
+    const map = new Map<
+      string,
+      { objective_name: string; count: number; hours: number }
+    >();
+
+    for (const objective of objectives) {
+      map.set(objective.objective_id, {
+        objective_name: objective.objective_name,
+        count: 0,
+        hours: 0,
+      });
+    }
+
+    for (const task of tasks) {
+      const existing = map.get(task.objective_id) || {
+        objective_name: task.objective_name,
+        count: 0,
+        hours: 0,
+      };
+
+      existing.count += 1;
+      existing.hours += task.effort_hours || 0;
+
+      map.set(task.objective_id, existing);
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [objectives, tasks]);
+
   const blockerTasks = useMemo(
     () => tasks.filter((task) => task.blocker_flag),
     [tasks],
@@ -182,8 +212,8 @@ export default function ProjectDetailPage({
             </h1>
 
             <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-              Project summary, objectives, task activity, blockers, and
-              insights.
+              Project summary, predefined objectives, activity in the current
+              timeframe, blockers, and insights.
             </p>
           </div>
 
@@ -230,7 +260,7 @@ export default function ProjectDetailPage({
               </div>
 
               <h2 className="mt-6 text-2xl font-semibold text-slate-950">
-                Objective
+                Project Goal / Summary
               </h2>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
                 {project.objective || "-"}
@@ -257,7 +287,7 @@ export default function ProjectDetailPage({
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Objectives
+                    Predefined Objectives
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-slate-950">
                     {objectives.length}
@@ -277,10 +307,11 @@ export default function ProjectDetailPage({
 
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
               <h2 className="text-2xl font-semibold text-slate-950">
-                Objectives
+                Predefined Objectives
               </h2>
               <p className="mt-2 text-sm text-slate-600">
-                Predefined objectives under this project.
+                These are the allowed objectives under which tasks can be
+                logged.
               </p>
 
               <div className="mt-6 space-y-3">
@@ -308,11 +339,49 @@ export default function ProjectDetailPage({
 
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
               <h2 className="text-2xl font-semibold text-slate-950">
+                Objective-wise Activity
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Work distribution across predefined objectives in the active
+                timeframe.
+              </p>
+
+              <div className="mt-6 space-y-3">
+                {objectiveTaskSummary.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                    No activity found.
+                  </div>
+                ) : (
+                  objectiveTaskSummary.map((item) => (
+                    <div
+                      key={item.objective_name}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-slate-900">
+                            {item.objective_name}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {item.count} task(s)
+                          </div>
+                        </div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {item.hours}h
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+              <h2 className="text-2xl font-semibold text-slate-950">
                 Tasks in Active Timeframe
               </h2>
               <p className="mt-2 text-sm text-slate-600">
-                Recent work logged under this project for the selected active
-                timeframe.
+                Recent work logged under this project for the active timeframe.
               </p>
 
               <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
