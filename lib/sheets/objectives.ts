@@ -3,7 +3,7 @@ import { Objective } from "@/lib/types/objective";
 import { createId } from "@/lib/utils/ids";
 import { getNowISOString } from "@/lib/utils/dates";
 
-const OBJECTIVES_RANGE = "Objectives!A1:E1000";
+const OBJECTIVES_RANGE = "Objectives!A1:E5000";
 const OBJECTIVES_APPEND_RANGE = "Objectives!A:E";
 
 function mapRowToObjective(row: string[]): Objective {
@@ -32,6 +32,13 @@ export async function getAllObjectives(): Promise<Objective[]> {
     .slice(1)
     .filter((row) => row[0])
     .map(mapRowToObjective);
+}
+
+export async function getObjectiveById(
+  objectiveId: string,
+): Promise<Objective | null> {
+  const objectives = await getAllObjectives();
+  return objectives.find((o) => o.objective_id === objectiveId) || null;
 }
 
 export async function getObjectivesByProjectId(
@@ -77,4 +84,100 @@ export async function createObjective(
   });
 
   return objective;
+}
+
+export async function updateObjective(
+  objectiveId: string,
+  input: { objective_name: string },
+): Promise<Objective> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: OBJECTIVES_RANGE,
+  });
+
+  const rows = response.data.values || [];
+
+  if (rows.length <= 1) {
+    throw new Error("No objectives found");
+  }
+
+  const rowIndex = rows.findIndex(
+    (row, index) => index > 0 && row[0] === objectiveId,
+  );
+
+  if (rowIndex === -1) {
+    throw new Error("Objective not found");
+  }
+
+  const currentRow = rows[rowIndex];
+  const now = getNowISOString();
+
+  const updated: Objective = {
+    objective_id: objectiveId,
+    project_id: currentRow[1] || "",
+    objective_name: input.objective_name,
+    created_at: currentRow[3] || now,
+    updated_at: now,
+  };
+
+  const sheetRowNumber = rowIndex + 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Objectives!A${sheetRowNumber}:E${sheetRowNumber}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [
+        [
+          updated.objective_id,
+          updated.project_id,
+          updated.objective_name,
+          updated.created_at,
+          updated.updated_at,
+        ],
+      ],
+    },
+  });
+
+  return updated;
+}
+
+export async function deleteObjective(objectiveId: string): Promise<void> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: OBJECTIVES_RANGE,
+  });
+
+  const rows = response.data.values || [];
+
+  if (rows.length <= 1) {
+    throw new Error("No objectives found");
+  }
+
+  const rowIndex = rows.findIndex(
+    (row, index) => index > 0 && row[0] === objectiveId,
+  );
+
+  if (rowIndex === -1) {
+    throw new Error("Objective not found");
+  }
+
+  const remainingRows = [
+    rows[0],
+    ...rows.slice(1).filter((row) => row[0] !== objectiveId),
+  ];
+
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: SPREADSHEET_ID,
+    range: "Objectives!A:E",
+  });
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: "Objectives!A1:E" + remainingRows.length,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: remainingRows,
+    },
+  });
 }

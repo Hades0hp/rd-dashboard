@@ -15,8 +15,23 @@ export default function NewProjectPage() {
   const [status, setStatus] = useState<"Active" | "Paused" | "Archived">(
     "Active",
   );
+
+  const [objectiveDraft, setObjectiveDraft] = useState("");
+  const [objectives, setObjectives] = useState<string[]>([]);
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  function addObjective() {
+    const trimmed = objectiveDraft.trim();
+    if (!trimmed) return;
+    setObjectives((prev) => [...prev, trimmed]);
+    setObjectiveDraft("");
+  }
+
+  function removeObjective(index: number) {
+    setObjectives((prev) => prev.filter((_, i) => i !== index));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,6 +67,21 @@ export default function NewProjectPage() {
         return;
       }
 
+      const projectId = json.data.project_id;
+
+      for (const obj of objectives) {
+        await fetch("/api/objectives", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            project_id: projectId,
+            objective_name: obj,
+          }),
+        });
+      }
+
       router.push("/projects");
     } catch (error) {
       console.error(error);
@@ -75,8 +105,7 @@ export default function NewProjectPage() {
             </h1>
 
             <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-              Define a new project with priority, effort expectation, and
-              progress.
+              Define a new project and its predefined objectives.
             </p>
           </div>
 
@@ -89,7 +118,7 @@ export default function NewProjectPage() {
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -121,12 +150,12 @@ export default function NewProjectPage() {
 
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Objective
+                  Project Goal / Summary
                 </label>
                 <textarea
                   value={objective}
                   onChange={(e) => setObjective(e.target.value)}
-                  rows={5}
+                  rows={4}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
                 />
               </div>
@@ -176,6 +205,57 @@ export default function NewProjectPage() {
                   <option>Paused</option>
                   <option>Archived</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-8">
+              <h2 className="text-xl font-semibold text-slate-950">
+                Predefined Objectives
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Add all objectives that tasks can later be logged under.
+              </p>
+
+              <div className="mt-5 flex gap-3">
+                <input
+                  value={objectiveDraft}
+                  onChange={(e) => setObjectiveDraft(e.target.value)}
+                  placeholder="e.g. Sensor validation"
+                  className="h-11 flex-1 rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
+                />
+                <button
+                  type="button"
+                  onClick={addObjective}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Add Objective
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {objectives.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                    No objectives added yet.
+                  </div>
+                ) : (
+                  objectives.map((obj, index) => (
+                    <div
+                      key={`${obj}-${index}`}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    >
+                      <div className="text-sm font-medium text-slate-900">
+                        {obj}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeObjective(index)}
+                        className="text-sm font-medium text-rose-600 hover:text-rose-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 

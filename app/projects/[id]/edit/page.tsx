@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type ObjectiveItem = {
+  objective_id: string;
+  objective_name: string;
+};
+
 export default function EditProjectPage({
   params,
 }: {
@@ -25,6 +30,9 @@ export default function EditProjectPage({
     "Active",
   );
 
+  const [objectives, setObjectives] = useState<ObjectiveItem[]>([]);
+  const [newObjective, setNewObjective] = useState("");
+
   useEffect(() => {
     async function loadProject() {
       const resolvedParams = await params;
@@ -32,16 +40,21 @@ export default function EditProjectPage({
       setProjectId(id);
 
       try {
-        const res = await fetch(`/api/projects/${id}`);
-        const json = await res.json();
+        const [projectRes, objectivesRes] = await Promise.all([
+          fetch(`/api/projects/${id}`),
+          fetch(`/api/objectives?project_id=${id}`),
+        ]);
 
-        if (!json.success || !json.data) {
+        const projectJson = await projectRes.json();
+        const objectivesJson = await objectivesRes.json();
+
+        if (!projectJson.success || !projectJson.data) {
           setMessage("Project not found.");
           setLoading(false);
           return;
         }
 
-        const project = json.data;
+        const project = projectJson.data;
 
         setName(project.name || "");
         setObjective(project.objective || "");
@@ -49,6 +62,7 @@ export default function EditProjectPage({
         setPlannedEffort(String(project.planned_effort_pct ?? 0));
         setProgress(String(project.progress_pct ?? 0));
         setStatus(project.status || "Active");
+        setObjectives(objectivesJson.data || []);
       } catch (error) {
         console.error(error);
         setMessage("Failed to load project data.");
@@ -59,6 +73,61 @@ export default function EditProjectPage({
 
     loadProject();
   }, [params]);
+
+  async function addObjective() {
+    const trimmed = newObjective.trim();
+    if (!trimmed || !projectId) return;
+
+    const res = await fetch("/api/objectives", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        project_id: projectId,
+        objective_name: trimmed,
+      }),
+    });
+
+    const json = await res.json();
+
+    if (json.success && json.data) {
+      setObjectives((prev) => [...prev, json.data]);
+      setNewObjective("");
+    }
+  }
+
+  async function updateObjectiveName(id: string, value: string) {
+    setObjectives((prev) =>
+      prev.map((obj) =>
+        obj.objective_id === id ? { ...obj, objective_name: value } : obj,
+      ),
+    );
+  }
+
+  async function saveObjective(id: string, value: string) {
+    await fetch(`/api/objectives/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        objective_name: value,
+      }),
+    });
+  }
+
+  async function deleteObjectiveItem(id: string) {
+    const res = await fetch(`/api/objectives/${id}`, {
+      method: "DELETE",
+    });
+
+    const json = await res.json();
+
+    if (json.success) {
+      setObjectives((prev) => prev.filter((obj) => obj.objective_id !== id));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -129,8 +198,7 @@ export default function EditProjectPage({
             </h1>
 
             <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-              Update project definition, priority, effort expectation, and
-              progress.
+              Update project definition and manage predefined objectives.
             </p>
           </div>
 
@@ -143,7 +211,7 @@ export default function EditProjectPage({
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -175,12 +243,12 @@ export default function EditProjectPage({
 
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Objective
+                  Project Goal / Summary
                 </label>
                 <textarea
                   value={objective}
                   onChange={(e) => setObjective(e.target.value)}
-                  rows={5}
+                  rows={4}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
                 />
               </div>
@@ -230,6 +298,64 @@ export default function EditProjectPage({
                   <option>Paused</option>
                   <option>Archived</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-8">
+              <h2 className="text-xl font-semibold text-slate-950">
+                Predefined Objectives
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Manage the objectives that tasks can be mapped under.
+              </p>
+
+              <div className="mt-5 flex gap-3">
+                <input
+                  value={newObjective}
+                  onChange={(e) => setNewObjective(e.target.value)}
+                  placeholder="e.g. Sampling system"
+                  className="h-11 flex-1 rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
+                />
+                <button
+                  type="button"
+                  onClick={addObjective}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Add Objective
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {objectives.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                    No objectives added yet.
+                  </div>
+                ) : (
+                  objectives.map((obj) => (
+                    <div
+                      key={obj.objective_id}
+                      className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    >
+                      <input
+                        value={obj.objective_name}
+                        onChange={(e) =>
+                          updateObjectiveName(obj.objective_id, e.target.value)
+                        }
+                        onBlur={(e) =>
+                          saveObjective(obj.objective_id, e.target.value)
+                        }
+                        className="h-11 flex-1 rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => deleteObjectiveItem(obj.objective_id)}
+                        className="text-sm font-medium text-rose-600 hover:text-rose-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
