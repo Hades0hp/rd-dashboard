@@ -1,41 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createProject, getAllProjects } from "@/lib/sheets/projects";
+import { getProjectById, updateProject } from "@/lib/sheets/projects";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(_request: NextRequest, { params }: Props) {
   try {
-    const projects = await getAllProjects();
+    const { id } = await params;
+    const project = await getProjectById(id);
+
+    if (!project) {
+      return NextResponse.json(
+        { success: false, error: "Project not found" },
+        { status: 404 },
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      data: projects,
+      data: project,
     });
   } catch (error: any) {
-    console.error("Error reading Projects sheet:", error?.message || error);
-
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Failed to read Projects sheet",
+        error: error?.message || "Failed to fetch project",
       },
       { status: 500 },
     );
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function PUT(request: NextRequest, { params }: Props) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     if (!body.name || !String(body.name).trim()) {
       return NextResponse.json(
-        { success: false, error: "Project name is required" },
+        { success: false, error: "name is required" },
         { status: 400 },
       );
     }
 
-    const project = await createProject({
+    const updated = await updateProject(id, {
       name: String(body.name).trim(),
       objective: body.objective ? String(body.objective).trim() : "",
       priority: body.priority || "Medium",
@@ -48,15 +59,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: project,
+      data: updated,
     });
   } catch (error: any) {
-    console.error("Error creating project:", error?.message || error);
-
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Failed to create project",
+        error: error?.message || "Failed to update project",
       },
       { status: 500 },
     );
