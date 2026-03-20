@@ -3,9 +3,9 @@ import "./globals.css";
 import AppNavbar from "@/components/layout/app-navbar";
 
 export const metadata: Metadata = {
-  title: "R&D Executive Alignment Dashboard",
+  title: "READ — R&D Dashboard",
   description:
-    "Internal tool for task logging, project alignment, and executive dashboards.",
+    "Execution tracking, project alignment, and executive dashboards for R&D teams.",
 };
 
 export default function RootLayout({

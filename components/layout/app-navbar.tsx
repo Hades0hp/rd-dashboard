@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -16,6 +17,10 @@ function isActive(pathname: string, href: string) {
     return pathname === "/dashboard";
   }
 
+  if (href === "/") {
+    return pathname === "/";
+  }
+
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -28,9 +33,16 @@ export default function AppNavbar() {
         <div className="flex items-center gap-8">
           <Link
             href="/"
-            className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-900"
+            className="flex items-center transition hover:opacity-80"
           >
-            READ
+            <Image
+              src="/logo2.svg"
+              alt="READ Logo"
+              width={64}
+              height={64}
+              className="h-12 w-12"
+              priority
+            />
           </Link>
 
           <nav className="hidden items-center gap-2 md:flex">
