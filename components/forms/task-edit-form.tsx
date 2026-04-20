@@ -33,7 +33,11 @@ type Task = {
   status: string;
   effort_hours?: number;
   blocker_flag: boolean;
+  blocker_title?: string;
   blocker_description?: string;
+  assigned_to_resolve?: string;
+  blocker_status?: string;
+  resolution_notes?: string;
   insight?: string;
 };
 
@@ -50,7 +54,11 @@ type FormState = {
   status: string;
   effort_hours: string;
   blocker_flag: boolean;
+  blocker_title: string;
   blocker_description: string;
+  assigned_to_resolve: string;
+  blocker_status: string;
+  resolution_notes: string;
   insight: string;
 };
 
@@ -72,9 +80,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
   const [pageLoading, setPageLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">(
-    "success",
-  );
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
 
   useEffect(() => {
     async function loadData() {
@@ -104,6 +110,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
         setProjects(projectsJson.data || []);
         setObjectives(objectivesJson.data || []);
         setPeople(peopleJson.data || []);
+
         setForm({
           date: task.date,
           person_id: task.person_id,
@@ -117,7 +124,11 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
           status: task.status || "Done",
           effort_hours: String(task.effort_hours ?? 0),
           blocker_flag: task.blocker_flag,
+          blocker_title: task.blocker_title || "",
           blocker_description: task.blocker_description || "",
+          assigned_to_resolve: task.assigned_to_resolve || "",
+          blocker_status: task.blocker_status || "Open",
+          resolution_notes: task.resolution_notes || "",
           insight: task.insight || "",
         });
       } catch (error) {
@@ -140,19 +151,11 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
   }, [objectives, form?.project_id]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) =>
-      prev
-        ? {
-            ...prev,
-            [key]: value,
-          }
-        : prev,
-    );
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
   function handleProjectChange(projectId: string) {
     const selectedProject = projects.find((p) => p.project_id === projectId);
-
     setForm((prev) =>
       prev
         ? {
@@ -170,7 +173,6 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
     const selectedObjective = objectives.find(
       (o) => o.objective_id === objectiveId,
     );
-
     setForm((prev) =>
       prev
         ? {
@@ -184,7 +186,6 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
 
   function handlePersonChange(personId: string) {
     const selectedPerson = people.find((p) => p.person_id === personId);
-
     setForm((prev) =>
       prev
         ? {
@@ -213,10 +214,27 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
       return;
     }
 
-    if (form.blocker_flag && !form.blocker_description.trim()) {
-      setMessageType("error");
-      setMessage("Please add blocker description.");
-      return;
+    if (form.blocker_flag) {
+      if (!form.blocker_title.trim()) {
+        setMessageType("error");
+        setMessage("Blocker Title is required.");
+        return;
+      }
+      if (!form.blocker_description.trim()) {
+        setMessageType("error");
+        setMessage("Blocker Description is required.");
+        return;
+      }
+      if (!form.assigned_to_resolve.trim()) {
+        setMessageType("error");
+        setMessage("Assigned To Resolve is required.");
+        return;
+      }
+      if (form.blocker_status === "Resolved" && !form.resolution_notes.trim()) {
+        setMessageType("error");
+        setMessage("Resolution Notes are required when status is Resolved.");
+        return;
+      }
     }
 
     setSaving(true);
@@ -224,9 +242,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           effort_hours: form.effort_hours ? Number(form.effort_hours) : 0,
@@ -288,11 +304,12 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
 
       <form onSubmit={handleSubmit} className="px-8 py-8">
         <div className="space-y-10">
+
+          {/* Basic Details */}
           <section>
             <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
               Basic Details
             </h3>
-
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className={labelClassName}>Date</label>
@@ -357,11 +374,11 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
             </div>
           </section>
 
+          {/* Work Log */}
           <section>
             <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
               Work Log
             </h3>
-
             <div className="space-y-5">
               <div>
                 <label className={labelClassName}>Description *</label>
@@ -411,9 +428,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
                     step="0.5"
                     min="0"
                     value={form.effort_hours}
-                    onChange={(e) =>
-                      updateField("effort_hours", e.target.value)
-                    }
+                    onChange={(e) => updateField("effort_hours", e.target.value)}
                     className={baseFieldClassName}
                   />
                 </div>
@@ -421,6 +436,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
             </div>
           </section>
 
+          {/* Learnings & Blockers */}
           <section>
             <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
               Learnings & Blockers
@@ -437,32 +453,135 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
                 />
               </div>
 
+              {/* Blocker section — matches create form exactly */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
+                <label className="flex items-center gap-3 text-base font-medium text-slate-800">
                   <input
                     type="checkbox"
                     checked={form.blocker_flag}
-                    onChange={(e) =>
-                      updateField("blocker_flag", e.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-slate-300"
+                    onChange={(e) => {
+                      updateField("blocker_flag", e.target.checked);
+                      if (!e.target.checked) {
+                        // clear blocker fields when unchecked
+                        setForm((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                blocker_flag: false,
+                                blocker_title: "",
+                                blocker_description: "",
+                                assigned_to_resolve: "",
+                                blocker_status: "Open",
+                                resolution_notes: "",
+                              }
+                            : prev,
+                        );
+                      }
+                    }}
+                    className="h-4 w-4"
                   />
                   Mark this task as blocked
                 </label>
 
                 {form.blocker_flag && (
-                  <div className="mt-4">
-                    <label className={labelClassName}>
-                      Blocker Description *
-                    </label>
-                    <textarea
-                      value={form.blocker_description}
-                      onChange={(e) =>
-                        updateField("blocker_description", e.target.value)
-                      }
-                      rows={4}
-                      className={textareaClassName}
-                    />
+                  <div className="mt-5 grid gap-5">
+                    {/* Blocker Title */}
+                    <div>
+                      <label className={labelClassName}>Blocker Title *</label>
+                      <input
+                        value={form.blocker_title}
+                        onChange={(e) =>
+                          updateField("blocker_title", e.target.value)
+                        }
+                        placeholder="Enter blocker title"
+                        className={baseFieldClassName}
+                      />
+                    </div>
+
+                    {/* Blocker Description */}
+                    <div>
+                      <label className={labelClassName}>
+                        Blocker Description *
+                      </label>
+                      <textarea
+                        value={form.blocker_description}
+                        onChange={(e) =>
+                          updateField("blocker_description", e.target.value)
+                        }
+                        placeholder="Describe what is blocking this task"
+                        rows={4}
+                        className={textareaClassName}
+                      />
+                    </div>
+
+                    {/* Assigned To + Status */}
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <div>
+                        <label className={labelClassName}>
+                          Assigned To Resolve *
+                        </label>
+                        <select
+                          value={form.assigned_to_resolve}
+                          onChange={(e) =>
+                            updateField("assigned_to_resolve", e.target.value)
+                          }
+                          className={baseFieldClassName}
+                        >
+                          <option value="">Select assignee</option>
+                          {people.map((person) => (
+                            <option key={person.person_id} value={person.name}>
+                              {person.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className={labelClassName}>
+                          Blocker Status *
+                        </label>
+                        <select
+                          value={form.blocker_status}
+                          onChange={(e) => {
+                            setForm((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    blocker_status: e.target.value,
+                                    resolution_notes:
+                                      e.target.value === "Resolved"
+                                        ? prev.resolution_notes
+                                        : "",
+                                  }
+                                : prev,
+                            );
+                          }}
+                          className={baseFieldClassName}
+                        >
+                          <option value="Open">Open</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Resolved">Resolved</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Resolution Notes — only when Resolved */}
+                    {form.blocker_status === "Resolved" && (
+                      <div>
+                        <label className={labelClassName}>
+                          Resolution Notes *
+                        </label>
+                        <textarea
+                          value={form.resolution_notes}
+                          onChange={(e) =>
+                            updateField("resolution_notes", e.target.value)
+                          }
+                          placeholder="Add resolution notes"
+                          rows={4}
+                          className={textareaClassName}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -470,6 +589,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
           </section>
         </div>
 
+        {/* Footer */}
         <div className="mt-8 border-t border-slate-200 pt-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createTask, getFilteredTasks } from "@/lib/sheets/tasks";
+import { createBlocker } from "@/lib/sheets/blockers";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
         success: false,
         error: error?.message || "Failed to read Tasks sheet",
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
       if (!body[field] || !String(body[field]).trim()) {
         return NextResponse.json(
           { success: false, error: `${field} is required` },
-          { status: 400 },
+          { status: 400 }
         );
       }
     }
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: "blocker_description is required when blocker_flag is true",
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -85,6 +86,37 @@ export async function POST(request: NextRequest) {
       insight: body.insight ? String(body.insight).trim() : "",
     });
 
+    if (body.blocker_flag) {
+      await createBlocker({
+        blocker_id: `BLK-${Date.now()}`,
+        task_id: task.task_id,
+        task_description: task.description,
+        person_id: task.person_id,
+        person_name: task.person_name,
+        project_id: task.project_id,
+        project_name: task.project_name,
+        objective_id: task.objective_id,
+        objective_name: task.objective_name,
+        blocker_title: body.blocker_title
+          ? String(body.blocker_title).trim()
+          : "",
+        blocker_description: body.blocker_description
+          ? String(body.blocker_description).trim()
+          : "",
+        assigned_to_resolve: body.assigned_to_resolve
+          ? String(body.assigned_to_resolve).trim()
+          : "",
+        blocker_status: body.blocker_status
+          ? String(body.blocker_status).trim()
+          : "Open",
+        resolution_notes: body.resolution_notes
+          ? String(body.resolution_notes).trim()
+          : "",
+        created_at: new Date().toISOString(),
+        resolved_at: "",
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: task,
@@ -97,7 +129,7 @@ export async function POST(request: NextRequest) {
         success: false,
         error: error?.message || "Failed to create task",
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
