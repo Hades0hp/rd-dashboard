@@ -40,7 +40,7 @@ type FormState = {
   assigned_to_resolve: string;
   blocker_status: string;
   resolution_notes: string;
-  insight: string;
+  insights: string;
 };
 
 const initialForm: FormState = {
@@ -61,7 +61,7 @@ const initialForm: FormState = {
   assigned_to_resolve: "",
   blocker_status: "Open",
   resolution_notes: "",
-  insight: "",
+  insights: "",
 };
 
 export default function TaskForm() {
@@ -104,7 +104,6 @@ export default function TaskForm() {
 
   function handlePersonChange(personId: string) {
     const selectedPerson = people.find((p) => p.person_id === personId);
-
     setForm((prev) => ({
       ...prev,
       person_id: personId,
@@ -114,7 +113,6 @@ export default function TaskForm() {
 
   function handleProjectChange(projectId: string) {
     const selectedProject = projects.find((p) => p.project_id === projectId);
-
     setForm((prev) => ({
       ...prev,
       project_id: projectId,
@@ -125,15 +123,11 @@ export default function TaskForm() {
   }
 
   function handleObjectiveChange(objectiveId: string) {
-    const selectedObjective = objectives.find(
-      (o) => o.objective_id === objectiveId
-    );
-
+    const selectedObjective = objectives.find((o) => o.objective_id === objectiveId);
     setForm((prev) => ({
       ...prev,
       objective_id: objectiveId,
-      objective_name:
-        selectedObjective?.name || selectedObjective?.objective_name || "",
+      objective_name: selectedObjective?.name || selectedObjective?.objective_name || "",
     }));
   }
 
@@ -147,29 +141,22 @@ export default function TaskForm() {
         setSubmitting(false);
         return;
       }
-
       if (!form.blocker_description.trim()) {
         alert("Blocker Description is required.");
         setSubmitting(false);
         return;
       }
-
       if (!form.assigned_to_resolve.trim()) {
         alert("Assigned To Resolve is required.");
         setSubmitting(false);
         return;
       }
-
       if (!form.blocker_status.trim()) {
         alert("Blocker Status is required.");
         setSubmitting(false);
         return;
       }
-
-      if (
-        form.blocker_status === "Resolved" &&
-        !form.resolution_notes.trim()
-      ) {
+      if (form.blocker_status === "Resolved" && !form.resolution_notes.trim()) {
         alert("Resolution Notes are required when blocker status is Resolved.");
         setSubmitting(false);
         return;
@@ -179,9 +166,7 @@ export default function TaskForm() {
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
 
@@ -207,9 +192,7 @@ export default function TaskForm() {
     <form onSubmit={handleSubmit} className="space-y-8">
       <div className="grid gap-6 md:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Date *
-          </label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Date *</label>
           <input
             type="date"
             value={form.date}
@@ -220,9 +203,7 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Team Member *
-          </label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Team Member *</label>
           <select
             value={form.person_id}
             onChange={(e) => handlePersonChange(e.target.value)}
@@ -239,9 +220,7 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Project *
-          </label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Project *</label>
           <select
             value={form.project_id}
             onChange={(e) => handleProjectChange(e.target.value)}
@@ -258,9 +237,7 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Objective *
-          </label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Objective *</label>
           <select
             value={form.objective_id}
             onChange={(e) => handleObjectiveChange(e.target.value)}
@@ -277,9 +254,7 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Task Type
-          </label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Task Type</label>
           <select
             value={form.task_type}
             onChange={(e) => setForm({ ...form, task_type: e.target.value })}
@@ -294,9 +269,7 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Status
-          </label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
           <select
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value })}
@@ -310,9 +283,7 @@ export default function TaskForm() {
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium text-slate-700">
-          Description *
-        </label>
+        <label className="mb-2 block text-sm font-medium text-slate-700">Description *</label>
         <textarea
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -324,9 +295,7 @@ export default function TaskForm() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Effort Hours
-          </label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Effort Hours</label>
           <input
             type="number"
             min="0"
@@ -339,12 +308,13 @@ export default function TaskForm() {
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium text-slate-700">
-          What did you learn from this work?
+        <label className="mb-1 block text-sm font-medium text-slate-700">
+          Insights
         </label>
+        <p className="mb-2 text-xs text-slate-500">What did you learn from this work?</p>
         <textarea
-          value={form.insight}
-          onChange={(e) => setForm({ ...form, insight: e.target.value })}
+          value={form.insights}
+          onChange={(e) => setForm({ ...form, insights: e.target.value })}
           placeholder="What did you learn from this work?"
           className="min-h-[120px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 outline-none"
         />
@@ -359,9 +329,7 @@ export default function TaskForm() {
               setForm({
                 ...form,
                 blocker_flag: e.target.checked,
-                blocker_status: e.target.checked
-                  ? form.blocker_status || "Open"
-                  : "Open",
+                blocker_status: e.target.checked ? form.blocker_status || "Open" : "Open",
                 resolution_notes: e.target.checked ? form.resolution_notes : "",
               })
             }
@@ -373,14 +341,10 @@ export default function TaskForm() {
         {form.blocker_flag && (
           <div className="mt-5 grid gap-5">
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Blocker Title *
-              </label>
+              <label className="mb-2 block text-sm font-medium text-slate-700">Blocker Title *</label>
               <input
                 value={form.blocker_title}
-                onChange={(e) =>
-                  setForm({ ...form, blocker_title: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, blocker_title: e.target.value })}
                 placeholder="Enter blocker title"
                 className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 outline-none"
                 required={form.blocker_flag}
@@ -388,14 +352,10 @@ export default function TaskForm() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Blocker Description *
-              </label>
+              <label className="mb-2 block text-sm font-medium text-slate-700">Blocker Description *</label>
               <textarea
                 value={form.blocker_description}
-                onChange={(e) =>
-                  setForm({ ...form, blocker_description: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, blocker_description: e.target.value })}
                 placeholder="Describe what is blocking this task"
                 className="min-h-[110px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 outline-none"
                 required={form.blocker_flag}
@@ -404,43 +364,34 @@ export default function TaskForm() {
 
             <div className="grid gap-5 md:grid-cols-2">
               <div>
-               <label className="mb-2 block text-sm font-medium text-slate-700">
-                Assigned To Resolve *
-  </label>
-  <select
-    value={form.assigned_to_resolve}
-    onChange={(e) =>
-      setForm({ ...form, assigned_to_resolve: e.target.value })
-    }
-    className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-base text-slate-900 outline-none"
-    required={form.blocker_flag}
-  >
-    <option value="">Select assignee</option>
-    {people.map((person) => {
-      const personLabel = person.name || person.person_name || person.person_id;
-      return (
-        <option key={person.person_id} value={personLabel}>
-          {personLabel}
-        </option>
-      );
-    })}
-  </select>
-</div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Assigned To Resolve *</label>
+                <select
+                  value={form.assigned_to_resolve}
+                  onChange={(e) => setForm({ ...form, assigned_to_resolve: e.target.value })}
+                  className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-base text-slate-900 outline-none"
+                  required={form.blocker_flag}
+                >
+                  <option value="">Select assignee</option>
+                  {people.map((person) => {
+                    const personLabel = person.name || person.person_name || person.person_id;
+                    return (
+                      <option key={person.person_id} value={personLabel}>
+                        {personLabel}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Blocker Status *
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Blocker Status *</label>
                 <select
                   value={form.blocker_status}
                   onChange={(e) =>
                     setForm({
                       ...form,
                       blocker_status: e.target.value,
-                      resolution_notes:
-                        e.target.value === "Resolved"
-                          ? form.resolution_notes
-                          : "",
+                      resolution_notes: e.target.value === "Resolved" ? form.resolution_notes : "",
                     })
                   }
                   className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-base text-slate-900 outline-none"
@@ -455,19 +406,13 @@ export default function TaskForm() {
 
             {form.blocker_status === "Resolved" && (
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Resolution Notes *
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Resolution Notes *</label>
                 <textarea
                   value={form.resolution_notes}
-                  onChange={(e) =>
-                    setForm({ ...form, resolution_notes: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, resolution_notes: e.target.value })}
                   placeholder="Add resolution notes"
                   className="min-h-[100px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 outline-none"
-                  required={
-                    form.blocker_flag && form.blocker_status === "Resolved"
-                  }
+                  required={form.blocker_flag && form.blocker_status === "Resolved"}
                 />
               </div>
             )}
@@ -476,10 +421,7 @@ export default function TaskForm() {
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-200 pt-6">
-        <p className="text-sm text-slate-500">
-          Fields marked with * are required.
-        </p>
-
+        <p className="text-sm text-slate-500">Fields marked with * are required.</p>
         <button
           type="submit"
           disabled={submitting}
