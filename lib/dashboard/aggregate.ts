@@ -147,15 +147,8 @@ export async function buildDashboardData(input: DashboardInput) {
         gap
       };
     })
-    // Sort: projects with activity first (by actual %), then no-activity projects by planned %
-    .sort((a, b) => {
-      if (a.actual_effort_pct !== null && b.actual_effort_pct !== null) {
-        return b.actual_effort_pct - a.actual_effort_pct;
-      }
-      if (a.actual_effort_pct !== null) return -1;
-      if (b.actual_effort_pct !== null) return 1;
-      return b.planned_effort_pct - a.planned_effort_pct;
-    });
+    // Sort by planned effort % descending
+    .sort((a, b) => b.planned_effort_pct - a.planned_effort_pct);
 
   /* ---------------- objective effort ---------------- */
 
