@@ -51,8 +51,6 @@ export async function buildDashboardData(input: DashboardInput) {
   );
 
   /* ---------------- planned effort from timeframes ---------------- */
-  // Collect all planned_effort entries from selected timeframes
-  // keyed by project_id, averaged if multiple timeframes selected
 
   const plannedPctAccum = new Map<string, number[]>();
 
@@ -72,14 +70,12 @@ export async function buildDashboardData(input: DashboardInput) {
     }
   }
 
-  // Average across selected timeframes
   const resolvedPlannedPct = new Map<string, number>();
   for (const [pid, pcts] of plannedPctAccum.entries()) {
     const avg = pcts.reduce((s, v) => s + v, 0) / pcts.length;
     resolvedPlannedPct.set(pid, Number(avg.toFixed(1)));
   }
 
-  // Get planned pct: timeframe value takes priority, fall back to project default
   function getPlannedPct(projectId: string, fallback: number): number {
     if (resolvedPlannedPct.has(projectId)) {
       return resolvedPlannedPct.get(projectId)!;
@@ -106,7 +102,7 @@ export async function buildDashboardData(input: DashboardInput) {
     total_hours: number;
   }>();
 
-  // Seed ALL projects
+  // Seed ALL projects — including those with no tasks
   for (const p of projects) {
     projectMap.set(p.project_id, {
       project_id: p.project_id,
@@ -117,13 +113,14 @@ export async function buildDashboardData(input: DashboardInput) {
     });
   }
 
-  // Accumulate task data
+  // Accumulate task data on top
   for (const t of tasks) {
     const existing = projectMap.get(t.project_id);
     if (existing) {
       existing.task_count++;
       existing.total_hours += t.effort_hours || 0;
     } else {
+      // Task references a project not in the projects sheet — add it anyway
       projectMap.set(t.project_id, {
         project_id: t.project_id,
         project_name: t.project_name,
@@ -135,16 +132,30 @@ export async function buildDashboardData(input: DashboardInput) {
   }
 
   const project_effort = Array.from(projectMap.values())
-    .filter(p => p.task_count > 0)
     .map(p => {
-      const actual = total_hours > 0 ? (p.total_hours / total_hours) * 100 : 0;
+      // actual_effort_pct is null when no tasks logged — blank in UI
+      const hasActivity = p.task_count > 0;
+      const actual = hasActivity && total_hours > 0
+        ? Number(((p.total_hours / total_hours) * 100).toFixed(1))
+        : null;
+      const gap = actual !== null
+        ? Number((p.planned_effort_pct - actual).toFixed(1))
+        : null;
       return {
         ...p,
-        actual_effort_pct: Number(actual.toFixed(1)),
-        gap: Number((p.planned_effort_pct - actual).toFixed(1))
+        actual_effort_pct: actual,
+        gap
       };
     })
-    .sort((a, b) => b.actual_effort_pct - a.actual_effort_pct);
+    // Sort: projects with activity first (by actual %), then no-activity projects by planned %
+    .sort((a, b) => {
+      if (a.actual_effort_pct !== null && b.actual_effort_pct !== null) {
+        return b.actual_effort_pct - a.actual_effort_pct;
+      }
+      if (a.actual_effort_pct !== null) return -1;
+      if (b.actual_effort_pct !== null) return 1;
+      return b.planned_effort_pct - a.planned_effort_pct;
+    });
 
   /* ---------------- objective effort ---------------- */
 

@@ -26,13 +26,12 @@ type DashboardData = {
     task_count: number;
     total_hours: number;
     planned_effort_pct: number;
-    actual_effort_pct: number;
-    gap: number;
+    actual_effort_pct: number | null;
+    gap: number | null;
   }>;
   objective_effort: Array<{
     objective_id: string;
     objective_name: string;
-    project_id: string;
     project_name: string;
     task_count: number;
     total_hours: number;
@@ -64,10 +63,6 @@ type DashboardData = {
     project_name: string;
     objective_name: string;
     insight: string;
-  }>;
-  all_projects: Array<{
-    project_id: string;
-    project_name: string;
   }>;
   metadata: {
     selected_timeframes_count: number;
@@ -189,7 +184,7 @@ export default function DashboardPage() {
 
   const projectOptions = useMemo(() => {
     if (!dashboard) return [];
-    return dashboard.all_projects || dashboard.project_effort.map((item) => ({
+    return dashboard.project_effort.map((item) => ({
       project_id: item.project_id,
       project_name: item.project_name,
     }));
@@ -200,7 +195,7 @@ export default function DashboardPage() {
     if (selectedProjectForObjectives === "ALL") return dashboard.objective_effort;
     const selectedProject = projectOptions.find((p) => p.project_id === selectedProjectForObjectives);
     if (!selectedProject) return dashboard.objective_effort;
-    return dashboard.objective_effort.filter((item) => item.project_id === selectedProject.project_id || item.project_name === selectedProject.project_name);
+    return dashboard.objective_effort.filter((item) => item.project_name === selectedProject.project_name);
   }, [dashboard, selectedProjectForObjectives, projectOptions]);
 
   const activeBlockers = useMemo(() => {
@@ -320,12 +315,19 @@ export default function DashboardPage() {
                     {dashboard.project_effort.map((item) => (
                       <tr key={item.project_id} className="border-b border-slate-100 last:border-0">
                         <td className="py-3 pr-4 font-medium text-slate-900">{item.project_name}</td>
-                        <td className="py-3 pr-4 text-slate-700">{item.actual_effort_pct}%</td>
-                        <td className="py-3 pr-4 text-slate-700">{item.planned_effort_pct}%</td>
-                        <td className={`py-3 pr-4 font-medium ${item.gap < 0 ? "text-red-600" : "text-emerald-600"}`}>
-                          {item.gap}%
+                        <td className="py-3 pr-4 text-slate-700">
+                          {item.actual_effort_pct !== null ? `${item.actual_effort_pct}%` : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="py-3 text-slate-700">{item.total_hours}h</td>
+                        <td className="py-3 pr-4 text-slate-700">{item.planned_effort_pct}%</td>
+                        <td className={`py-3 pr-4 font-medium ${
+                          item.gap === null ? "text-slate-300" :
+                          item.gap < 0 ? "text-red-600" : "text-emerald-600"
+                        }`}>
+                          {item.gap !== null ? `${item.gap}%` : "—"}
+                        </td>
+                        <td className="py-3 text-slate-700">
+                          {item.total_hours > 0 ? `${item.total_hours}h` : <span className="text-slate-300">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -428,6 +430,7 @@ export default function DashboardPage() {
                         key={`${item.task_id}-${item.date}-${item.blocker_description}`}
                         className="rounded-2xl border border-rose-200 bg-rose-50 p-4"
                       >
+                        {/* project • objective + status badge */}
                         <div className="flex items-center justify-between gap-3">
                           <span className="truncate text-xs font-medium text-slate-500">
                             {item.project_name}
@@ -441,17 +444,29 @@ export default function DashboardPage() {
                             {item.blocker_status}
                           </span>
                         </div>
-                        <div className="mt-1.5 text-sm font-semibold text-slate-900">
-                          {item.blocker_title || "Untitled Blocker"}
+
+                        {/* ── CHANGED: labeled fields ── */}
+                        <div className="mt-3 space-y-2">
+                          <div className="flex gap-2">
+                            <span className="w-28 shrink-0 text-xs text-slate-400">Blocker Title</span>
+                            <span className="text-xs font-medium text-slate-800">
+                              {item.blocker_title || "—"}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="w-28 shrink-0 text-xs text-slate-400">Description</span>
+                            <span className="text-xs leading-4 text-slate-700">
+                              {item.blocker_description || "—"}
+                            </span>
+                          </div>
                         </div>
-                        <div className="mt-1 text-sm leading-5 text-slate-600">
-                          {item.blocker_description}
-                        </div>
+
+                        {/* Initials avatars */}
                         <div className="mt-3 flex items-center gap-4">
                           <div className="flex items-center gap-1.5">
                             <span
                               title={item.person_name}
-                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-200 text-[10px] font-bold text-rose-800"
+                              className="inline-flex h-6 w-6 shrink-0 cursor-default items-center justify-center rounded-full bg-rose-200 text-[10px] font-bold text-rose-800"
                             >
                               {item.person_name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase()}
                             </span>
@@ -461,7 +476,7 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-1.5">
                               <span
                                 title={item.assigned_to_resolve}
-                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-800"
+                                className="inline-flex h-6 w-6 shrink-0 cursor-default items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-800"
                               >
                                 {item.assigned_to_resolve.split(" ").slice(0, 2).map((n: string) => n[0]).join("").toUpperCase()}
                               </span>
