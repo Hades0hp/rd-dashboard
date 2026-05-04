@@ -164,17 +164,11 @@ export default function EditBlockerPage({
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-[1400px] px-8 py-10">
 
-        {/* Header — matches Task Details header style */}
         <div className="mb-2">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Edit Blocker
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Update blocker information, status, and resolution details.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Edit Blocker</h1>
+          <p className="mt-1 text-sm text-slate-500">Update blocker information, status, and resolution details.</p>
         </div>
 
-        {/* Action buttons — top right, mirrors "Back to Tasks" placement */}
         <div className="mb-8 flex justify-end gap-3">
           <Link
             href={`/blockers/${id}`}
@@ -192,10 +186,8 @@ export default function EditBlockerPage({
           </button>
         </div>
 
-        {/* Two-column layout — matches Task Details exactly */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
 
-          {/* Left — Read-only summary card */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-bold text-slate-900">Summary</h2>
             <SummaryRow label="Date" value={blocker.created_at?.slice(0, 10)} />
@@ -203,18 +195,13 @@ export default function EditBlockerPage({
             <SummaryRow label="Project" value={blocker.project_name} />
             <SummaryRow label="Objective" value={blocker.objective_name} />
             <SummaryRow label="Task ID" value={blocker.task_id} />
-            <SummaryRow
-              label="Status"
-              value={<StatusBadge status={form.blocker_status} />}
-            />
+            <SummaryRow label="Status" value={<StatusBadge status={form.blocker_status} />} />
             <SummaryRow label="Created At" value={blocker.created_at?.slice(0, 10)} />
             <SummaryRow label="Resolved At" value={blocker.resolved_at?.slice(0, 10) || "-"} />
           </div>
 
-          {/* Right — Editable fields */}
           <form id="edit-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
 
-            {/* Blocker Title */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <label className="mb-3 block text-lg font-bold text-slate-900">
                 Blocker Title <span className="text-red-400">*</span>
@@ -223,12 +210,12 @@ export default function EditBlockerPage({
                 value={form.blocker_title}
                 onChange={(e) => setForm({ ...form, blocker_title: e.target.value })}
                 placeholder="Enter blocker title"
+                spellCheck={true}
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white transition-colors"
                 required
               />
             </div>
 
-            {/* Description */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="mb-3 text-lg font-bold text-slate-900">
                 Description <span className="text-red-400">*</span>
@@ -238,18 +225,17 @@ export default function EditBlockerPage({
                 onChange={(e) => setForm({ ...form, blocker_description: e.target.value })}
                 placeholder="Describe the blocker..."
                 rows={4}
+                spellCheck={true}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white transition-colors resize-none"
                 required
               />
             </div>
 
-            {/* Task Description (read-only) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="mb-3 text-lg font-bold text-slate-900">Task Description</h2>
               <p className="text-sm leading-7 text-slate-500">{blocker.task_description || "-"}</p>
             </div>
 
-            {/* Assignment & Status */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="mb-4 text-lg font-bold text-slate-900">Assignment & Status</h2>
               <div className="grid gap-4 md:grid-cols-2">
@@ -295,7 +281,6 @@ export default function EditBlockerPage({
               </div>
             </div>
 
-            {/* Resolution Notes — only when Resolved */}
             {form.blocker_status === "Resolved" && (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="mb-3 text-lg font-bold text-slate-900">
@@ -306,6 +291,7 @@ export default function EditBlockerPage({
                   onChange={(e) => setForm({ ...form, resolution_notes: e.target.value })}
                   placeholder="Describe how this blocker was resolved..."
                   rows={4}
+                  spellCheck={true}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white transition-colors resize-none"
                   required
                 />

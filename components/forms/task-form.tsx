@@ -40,7 +40,7 @@ type FormState = {
   assigned_to_resolve: string;
   blocker_status: string;
   resolution_notes: string;
-  insights: string;
+  insight: string;
 };
 
 const initialForm: FormState = {
@@ -61,7 +61,7 @@ const initialForm: FormState = {
   assigned_to_resolve: "",
   blocker_status: "Open",
   resolution_notes: "",
-  insights: "",
+  insight: "",
 };
 
 export default function TaskForm() {
@@ -117,17 +117,21 @@ export default function TaskForm() {
       ...prev,
       project_id: projectId,
       project_name: selectedProject?.name || selectedProject?.project_name || "",
+      // Reset objective when project changes
       objective_id: "",
       objective_name: "",
     }));
   }
 
   function handleObjectiveChange(objectiveId: string) {
-    const selectedObjective = objectives.find((o) => o.objective_id === objectiveId);
+    const selectedObjective = objectives.find(
+      (o) => o.objective_id === objectiveId
+    );
     setForm((prev) => ({
       ...prev,
       objective_id: objectiveId,
-      objective_name: selectedObjective?.name || selectedObjective?.objective_name || "",
+      objective_name:
+        selectedObjective?.name || selectedObjective?.objective_name || "",
     }));
   }
 
@@ -192,7 +196,9 @@ export default function TaskForm() {
     <form onSubmit={handleSubmit} className="space-y-8">
       <div className="grid gap-6 md:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">Date *</label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Date *
+          </label>
           <input
             type="date"
             value={form.date}
@@ -203,7 +209,9 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">Team Member *</label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Team Member *
+          </label>
           <select
             value={form.person_id}
             onChange={(e) => handlePersonChange(e.target.value)}
@@ -220,7 +228,9 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">Project *</label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Project *
+          </label>
           <select
             value={form.project_id}
             onChange={(e) => handleProjectChange(e.target.value)}
@@ -237,14 +247,23 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">Objective *</label>
+          <label className={`mb-2 block text-sm font-medium ${form.project_id ? "text-slate-700" : "text-slate-400"}`}>
+            Objective *
+          </label>
           <select
             value={form.objective_id}
             onChange={(e) => handleObjectiveChange(e.target.value)}
-            className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-base text-slate-900 outline-none"
+            disabled={!form.project_id}
+            className={`h-12 w-full rounded-2xl border px-4 text-base outline-none transition-colors ${
+              form.project_id
+                ? "border-slate-300 bg-white text-slate-900 cursor-pointer"
+                : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+            }`}
             required
           >
-            <option value="">Select objective</option>
+            <option value="">
+              {form.project_id ? "Select objective" : "Select a project first"}
+            </option>
             {filteredObjectives.map((objective) => (
               <option key={objective.objective_id} value={objective.objective_id}>
                 {objective.name || objective.objective_name}
@@ -254,7 +273,9 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">Task Type</label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Task Type
+          </label>
           <select
             value={form.task_type}
             onChange={(e) => setForm({ ...form, task_type: e.target.value })}
@@ -269,7 +290,9 @@ export default function TaskForm() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Status
+          </label>
           <select
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value })}
@@ -283,8 +306,10 @@ export default function TaskForm() {
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium text-slate-700">Description *</label>
-        <textarea
+        <label className="mb-2 block text-sm font-medium text-slate-700">
+          Description *
+        </label>
+        <textarea spellCheck={true}
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
           placeholder="Describe the task completed"
@@ -295,7 +320,9 @@ export default function TaskForm() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">Effort Hours</label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Effort Hours
+          </label>
           <input
             type="number"
             min="0"
@@ -308,13 +335,12 @@ export default function TaskForm() {
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">
-          Insights
+        <label className="mb-2 block text-sm font-medium text-slate-700">
+          What did you learn from this work?
         </label>
-        <p className="mb-2 text-xs text-slate-500">What did you learn from this work?</p>
-        <textarea
-          value={form.insights}
-          onChange={(e) => setForm({ ...form, insights: e.target.value })}
+        <textarea spellCheck={true}
+          value={form.insight}
+          onChange={(e) => setForm({ ...form, insight: e.target.value })}
           placeholder="What did you learn from this work?"
           className="min-h-[120px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 outline-none"
         />
@@ -341,7 +367,9 @@ export default function TaskForm() {
         {form.blocker_flag && (
           <div className="mt-5 grid gap-5">
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Blocker Title *</label>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Blocker Title *
+              </label>
               <input
                 value={form.blocker_title}
                 onChange={(e) => setForm({ ...form, blocker_title: e.target.value })}
@@ -352,8 +380,10 @@ export default function TaskForm() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Blocker Description *</label>
-              <textarea
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Blocker Description *
+              </label>
+              <textarea spellCheck={true}
                 value={form.blocker_description}
                 onChange={(e) => setForm({ ...form, blocker_description: e.target.value })}
                 placeholder="Describe what is blocking this task"
@@ -364,7 +394,9 @@ export default function TaskForm() {
 
             <div className="grid gap-5 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Assigned To Resolve *</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Assigned To Resolve *
+                </label>
                 <select
                   value={form.assigned_to_resolve}
                   onChange={(e) => setForm({ ...form, assigned_to_resolve: e.target.value })}
@@ -384,14 +416,17 @@ export default function TaskForm() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Blocker Status *</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Blocker Status *
+                </label>
                 <select
                   value={form.blocker_status}
                   onChange={(e) =>
                     setForm({
                       ...form,
                       blocker_status: e.target.value,
-                      resolution_notes: e.target.value === "Resolved" ? form.resolution_notes : "",
+                      resolution_notes:
+                        e.target.value === "Resolved" ? form.resolution_notes : "",
                     })
                   }
                   className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-base text-slate-900 outline-none"
@@ -406,8 +441,10 @@ export default function TaskForm() {
 
             {form.blocker_status === "Resolved" && (
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Resolution Notes *</label>
-                <textarea
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Resolution Notes *
+                </label>
+                <textarea spellCheck={true}
                   value={form.resolution_notes}
                   onChange={(e) => setForm({ ...form, resolution_notes: e.target.value })}
                   placeholder="Add resolution notes"
@@ -421,7 +458,9 @@ export default function TaskForm() {
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-200 pt-6">
-        <p className="text-sm text-slate-500">Fields marked with * are required.</p>
+        <p className="text-sm text-slate-500">
+          Fields marked with * are required.
+        </p>
         <button
           type="submit"
           disabled={submitting}

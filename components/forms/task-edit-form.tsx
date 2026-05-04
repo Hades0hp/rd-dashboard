@@ -382,7 +382,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
             <div className="space-y-5">
               <div>
                 <label className={labelClassName}>Description *</label>
-                <textarea
+                <textarea spellCheck={true}
                   value={form.description}
                   onChange={(e) => updateField("description", e.target.value)}
                   rows={6}
@@ -445,7 +445,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
             <div className="space-y-5">
               <div>
                 <label className={labelClassName}>Insight</label>
-                <textarea
+                <textarea spellCheck={true}
                   value={form.insight}
                   onChange={(e) => updateField("insight", e.target.value)}
                   rows={5}
@@ -503,7 +503,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
                       <label className={labelClassName}>
                         Blocker Description *
                       </label>
-                      <textarea
+                      <textarea spellCheck={true}
                         value={form.blocker_description}
                         onChange={(e) =>
                           updateField("blocker_description", e.target.value)
@@ -571,7 +571,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
                         <label className={labelClassName}>
                           Resolution Notes *
                         </label>
-                        <textarea
+                        <textarea spellCheck={true}
                           value={form.resolution_notes}
                           onChange={(e) =>
                             updateField("resolution_notes", e.target.value)

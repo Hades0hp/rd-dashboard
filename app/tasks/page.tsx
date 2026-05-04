@@ -32,6 +32,13 @@ type OptionItem = {
   name: string;
 };
 
+type ObjectiveOption = {
+  id: string;
+  name: string;
+  project_id: string;
+  project_name: string;
+};
+
 function truncateText(text: string, max = 44) {
   if (!text) return "-";
   return text.length > max ? `${text.slice(0, max)}...` : text;
@@ -42,8 +49,29 @@ function formatTimeframeLabel(tf: Timeframe) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  if (status === "Done") {
+    return (
+      <span className="inline-flex whitespace-nowrap rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
+        Done
+      </span>
+    );
+  }
+  if (status === "In Progress") {
+    return (
+      <span className="inline-flex whitespace-nowrap rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+        In Progress
+      </span>
+    );
+  }
+  if (status === "Blocked") {
+    return (
+      <span className="inline-flex whitespace-nowrap rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
+        Blocked
+      </span>
+    );
+  }
   return (
-    <span className="inline-flex rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+    <span className="inline-flex whitespace-nowrap rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700">
       {status}
     </span>
   );
@@ -58,6 +86,7 @@ export default function TasksPage() {
   const [selectedPersonId, setSelectedPersonId] = useState("ALL");
   const [selectedProjectId, setSelectedProjectId] = useState("ALL");
   const [selectedObjectiveId, setSelectedObjectiveId] = useState("ALL");
+  const [selectedStatus, setSelectedStatus] = useState("ALL");
 
   useEffect(() => {
     async function loadData() {
@@ -103,7 +132,9 @@ export default function TasksPage() {
     tasks.forEach((task) => {
       if (task.person_id && task.person_name) map.set(task.person_id, task.person_name);
     });
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [tasks]);
 
   const projectOptions = useMemo<OptionItem[]>(() => {
@@ -111,16 +142,48 @@ export default function TasksPage() {
     tasks.forEach((task) => {
       if (task.project_id && task.project_name) map.set(task.project_id, task.project_name);
     });
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [tasks]);
 
-  const objectiveOptions = useMemo<OptionItem[]>(() => {
-    const map = new Map<string, string>();
+  // Objectives filtered by selected project, deduplicated by name when all projects shown
+  const objectiveOptions = useMemo<ObjectiveOption[]>(() => {
+    const map = new Map<string, ObjectiveOption>();
     tasks.forEach((task) => {
-      if (task.objective_id && task.objective_name) map.set(task.objective_id, task.objective_name);
+      if (task.objective_id && task.objective_name) {
+        map.set(task.objective_id, {
+          id: task.objective_id,
+          name: task.objective_name,
+          project_id: task.project_id,
+          project_name: task.project_name,
+        });
+      }
     });
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [tasks]);
+
+    let options = Array.from(map.values());
+
+    // Filter by selected project
+    if (selectedProjectId !== "ALL") {
+      options = options.filter((o) => o.project_id === selectedProjectId);
+    } else {
+      // Deduplicate by objective name when all projects selected
+      const seenNames = new Set<string>();
+      options = options.filter((o) => {
+        if (seenNames.has(o.name)) return false;
+        seenNames.add(o.name);
+        return true;
+      });
+    }
+
+    return options.sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasks, selectedProjectId]);
+
+  // Reset objective when project changes
+  const handleProjectChange = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setSelectedObjectiveId("ALL");
+  };
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -130,9 +193,10 @@ export default function TasksPage() {
       const matchesPerson = selectedPersonId === "ALL" || task.person_id === selectedPersonId;
       const matchesProject = selectedProjectId === "ALL" || task.project_id === selectedProjectId;
       const matchesObjective = selectedObjectiveId === "ALL" || task.objective_id === selectedObjectiveId;
-      return matchesTimeframe && matchesPerson && matchesProject && matchesObjective;
+      const matchesStatus = selectedStatus === "ALL" || task.status === selectedStatus;
+      return matchesTimeframe && matchesPerson && matchesProject && matchesObjective && matchesStatus;
     });
-  }, [tasks, selectedTimeframe, selectedPersonId, selectedProjectId, selectedObjectiveId]);
+  }, [tasks, selectedTimeframe, selectedPersonId, selectedProjectId, selectedObjectiveId, selectedStatus]);
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -141,9 +205,7 @@ export default function TasksPage() {
         {/* Header */}
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight text-slate-950">
-              Task Log
-            </h1>
+            <h1 className="text-4xl font-bold tracking-tight text-slate-950">Task Log</h1>
             <p className="mt-2 text-sm text-slate-500">
               View and manage tasks logged for the selected sprint/timeframe.
             </p>
@@ -158,7 +220,7 @@ export default function TasksPage() {
 
         {/* Filters card */}
         <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-600">Timeframe</label>
               <select
@@ -192,7 +254,7 @@ export default function TasksPage() {
               <label className="mb-1.5 block text-sm font-medium text-slate-600">Project</label>
               <select
                 value={selectedProjectId}
-                onChange={(e) => setSelectedProjectId(e.target.value)}
+                onChange={(e) => handleProjectChange(e.target.value)}
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
               >
                 <option value="ALL">All projects</option>
@@ -211,14 +273,30 @@ export default function TasksPage() {
               >
                 <option value="ALL">All objectives</option>
                 {objectiveOptions.map((objective) => (
-                  <option key={objective.id} value={objective.id}>{objective.name}</option>
+                  <option key={objective.id} value={objective.id}>
+                    {objective.name}
+                  </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-600">Status</label>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
+              >
+                <option value="ALL">All Status</option>
+                <option value="Done">Done</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Blocked">Blocked</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* Table card — separate from filters */}
+        {/* Table card */}
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {loading ? (
             <div className="p-8 text-center text-sm text-slate-500">Loading tasks...</div>
