@@ -166,11 +166,11 @@ export default function TimeframesPage() {
 
       const plannedEffort = hasAnyEffort
         ? effortEntries
-            .filter((e) => Number(e.planned_pct) > 0)
+            .filter((e) => e.planned_pct !== "")
             .map((e) => ({
-              project_id: e.project_id,
-              project_name: e.project_name,
-              planned_pct: Number(e.planned_pct),
+            project_id: e.project_id,
+            project_name: e.project_name,
+            planned_pct: Number(e.planned_pct),
             }))
         : [];
 

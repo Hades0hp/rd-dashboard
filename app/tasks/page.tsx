@@ -122,8 +122,10 @@ export default function TasksPage() {
     loadData();
   }, []);
 
-  const selectedTimeframe = useMemo(
-    () => timeframes.find((tf) => tf.timeframe_id === selectedTimeframeId) || null,
+ const selectedTimeframe = useMemo(
+    () => selectedTimeframeId === "ALL"
+      ? null
+      : timeframes.find((tf) => tf.timeframe_id === selectedTimeframeId) || null,
     [timeframes, selectedTimeframeId],
   );
 
@@ -228,6 +230,7 @@ export default function TasksPage() {
                 onChange={(e) => setSelectedTimeframeId(e.target.value)}
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
               >
+                <option value="ALL">All Timeframes</option>
                 {timeframes.map((tf) => (
                   <option key={tf.timeframe_id} value={tf.timeframe_id}>
                     {formatTimeframeLabel(tf)}

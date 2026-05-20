@@ -53,6 +53,8 @@ export async function buildDashboardData(input: DashboardInput) {
   /* ---------------- planned effort from timeframes ---------------- */
 
   const plannedPctAccum = new Map<string, number[]>();
+  // KEY FIX: track which projects have an explicit timeframe entry (even if 0%)
+  const projectsWithTimeframeEntry = new Set<string>();
 
   for (const tf of selectedTimeframes) {
     const entries: PlannedEffortEntry[] = Array.isArray(tf.planned_effort)
@@ -60,13 +62,15 @@ export async function buildDashboardData(input: DashboardInput) {
       : [];
 
     for (const entry of entries) {
+      if (!entry.project_id) continue;
       const pct = Number(entry.planned_pct);
-      if (!isNaN(pct) && entry.project_id) {
-        if (!plannedPctAccum.has(entry.project_id)) {
-          plannedPctAccum.set(entry.project_id, []);
-        }
-        plannedPctAccum.get(entry.project_id)!.push(pct);
+      if (isNaN(pct)) continue;
+      // Mark this project as explicitly set in the timeframe (even if pct === 0)
+      projectsWithTimeframeEntry.add(entry.project_id);
+      if (!plannedPctAccum.has(entry.project_id)) {
+        plannedPctAccum.set(entry.project_id, []);
       }
+      plannedPctAccum.get(entry.project_id)!.push(pct);
     }
   }
 
@@ -77,10 +81,14 @@ export async function buildDashboardData(input: DashboardInput) {
   }
 
   function getPlannedPct(projectId: string, fallback: number): number {
-    if (resolvedPlannedPct.has(projectId)) {
-      return resolvedPlannedPct.get(projectId)!;
+    // If project has explicit timeframe entry, use it — even if it's 0%
+    // Use ?? not || so that 0 is preserved (|| 0 would treat 0 as falsy)
+    if (projectsWithTimeframeEntry.has(projectId)) {
+      return resolvedPlannedPct.get(projectId) ?? 0;
     }
-    return Number(fallback) || 0;
+    // No timeframe entry — fall back to project-level default
+    const fb = Number(fallback);
+    return isNaN(fb) ? 0 : fb;
   }
 
   /* ---------------- summary ---------------- */
@@ -120,7 +128,6 @@ export async function buildDashboardData(input: DashboardInput) {
       existing.task_count++;
       existing.total_hours += t.effort_hours || 0;
     } else {
-      // Task references a project not in the projects sheet — add it anyway
       projectMap.set(t.project_id, {
         project_id: t.project_id,
         project_name: t.project_name,
@@ -133,7 +140,6 @@ export async function buildDashboardData(input: DashboardInput) {
 
   const project_effort = Array.from(projectMap.values())
     .map(p => {
-      // actual_effort_pct is null when no tasks logged — blank in UI
       const hasActivity = p.task_count > 0;
       const actual = hasActivity && total_hours > 0
         ? Number(((p.total_hours / total_hours) * 100).toFixed(1))
@@ -147,7 +153,6 @@ export async function buildDashboardData(input: DashboardInput) {
         gap
       };
     })
-    // Sort by planned effort % descending
     .sort((a, b) => b.planned_effort_pct - a.planned_effort_pct);
 
   /* ---------------- objective effort ---------------- */
