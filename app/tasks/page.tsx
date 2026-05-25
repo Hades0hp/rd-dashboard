@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 type Task = {
   task_id: string;
@@ -77,13 +78,15 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export default function TasksPage() {
+function TasksPageInner() {
+  const searchParams = useSearchParams();
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedTimeframeId, setSelectedTimeframeId] = useState("");
-  const [selectedPersonId, setSelectedPersonId] = useState("ALL");
+  const [selectedPersonId, setSelectedPersonId] = useState(searchParams.get("person_id") || "ALL");
   const [selectedProjectId, setSelectedProjectId] = useState("ALL");
   const [selectedObjectiveId, setSelectedObjectiveId] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
@@ -122,7 +125,7 @@ export default function TasksPage() {
     loadData();
   }, []);
 
- const selectedTimeframe = useMemo(
+  const selectedTimeframe = useMemo(
     () => selectedTimeframeId === "ALL"
       ? null
       : timeframes.find((tf) => tf.timeframe_id === selectedTimeframeId) || null,
@@ -149,7 +152,6 @@ export default function TasksPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [tasks]);
 
-  // Objectives filtered by selected project, deduplicated by name when all projects shown
   const objectiveOptions = useMemo<ObjectiveOption[]>(() => {
     const map = new Map<string, ObjectiveOption>();
     tasks.forEach((task) => {
@@ -165,11 +167,9 @@ export default function TasksPage() {
 
     let options = Array.from(map.values());
 
-    // Filter by selected project
     if (selectedProjectId !== "ALL") {
       options = options.filter((o) => o.project_id === selectedProjectId);
     } else {
-      // Deduplicate by objective name when all projects selected
       const seenNames = new Set<string>();
       options = options.filter((o) => {
         if (seenNames.has(o.name)) return false;
@@ -181,7 +181,6 @@ export default function TasksPage() {
     return options.sort((a, b) => a.name.localeCompare(b.name));
   }, [tasks, selectedProjectId]);
 
-  // Reset objective when project changes
   const handleProjectChange = (projectId: string) => {
     setSelectedProjectId(projectId);
     setSelectedObjectiveId("ALL");
@@ -365,5 +364,13 @@ export default function TasksPage() {
 
       </div>
     </main>
+  );
+}
+
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-100" />}>
+      <TasksPageInner />
+    </Suspense>
   );
 }

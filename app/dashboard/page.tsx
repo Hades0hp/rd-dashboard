@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type Timeframe = {
@@ -400,7 +401,14 @@ export default function DashboardPage() {
                     <tbody>
                       {dashboard.people_contribution.map((person) => (
                         <tr key={person.person_id} className="border-b border-slate-100 last:border-0">
-                          <td className="py-3 pr-4 font-medium text-slate-900">{person.person_name}</td>
+                          <td className="py-3 pr-4">
+                            <Link
+                              href={`/tasks?person_id=${person.person_id}`}
+                              className="font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 hover:text-slate-600 hover:decoration-slate-600"
+                            >
+                              {person.person_name}
+                            </Link>
+                          </td>
                           <td className="py-3 pr-4 text-slate-700">{person.total_hours}h</td>
                           <td className="py-3 pr-4 text-slate-700">{person.task_count}</td>
                           <td className="py-3 pr-4 text-slate-700">{person.blockers_count}</td>
