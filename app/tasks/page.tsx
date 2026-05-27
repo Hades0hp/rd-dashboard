@@ -80,16 +80,45 @@ function StatusBadge({ status }: { status: string }) {
 
 function TasksPageInner() {
   const searchParams = useSearchParams();
+  const STORAGE_KEY = "tasks_filters";
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedTimeframeId, setSelectedTimeframeId] = useState("");
-  const [selectedPersonId, setSelectedPersonId] = useState(searchParams.get("person_id") || "ALL");
+  const [selectedPersonId, setSelectedPersonId] = useState("ALL");
   const [selectedProjectId, setSelectedProjectId] = useState("ALL");
   const [selectedObjectiveId, setSelectedObjectiveId] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
+
+  function persistFilters(updates: Record<string, string>) {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      const current = saved ? JSON.parse(saved) : {};
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...updates }));
+    } catch {}
+  }
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      const filters = saved ? JSON.parse(saved) : {};
+      const urlPersonId = searchParams.get("person_id");
+
+      if (urlPersonId) {
+        setSelectedPersonId(urlPersonId);
+        persistFilters({ person_id: urlPersonId });
+      } else if (filters.person_id) {
+        setSelectedPersonId(filters.person_id);
+      }
+
+      if (filters.project_id) setSelectedProjectId(filters.project_id);
+      if (filters.objective_id) setSelectedObjectiveId(filters.objective_id);
+      if (filters.status) setSelectedStatus(filters.status);
+      if (filters.timeframe_id) setSelectedTimeframeId(filters.timeframe_id);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -108,13 +137,19 @@ function TasksPageInner() {
         setTasks(loadedTasks);
         setTimeframes(loadedTimeframes);
 
-        const activeTimeframe =
-          loadedTimeframes.find((tf: Timeframe) => tf.status === "Active") ||
-          loadedTimeframes[0];
-
-        if (activeTimeframe) {
-          setSelectedTimeframeId(activeTimeframe.timeframe_id);
-        }
+        try {
+          const saved = sessionStorage.getItem(STORAGE_KEY);
+          const filters = saved ? JSON.parse(saved) : {};
+          if (!filters.timeframe_id) {
+            const activeTimeframe =
+              loadedTimeframes.find((tf: Timeframe) => tf.status === "Active") ||
+              loadedTimeframes[0];
+            if (activeTimeframe) {
+              setSelectedTimeframeId(activeTimeframe.timeframe_id);
+              persistFilters({ timeframe_id: activeTimeframe.timeframe_id });
+            }
+          }
+        } catch {}
       } catch (error) {
         console.error("Error loading tasks page:", error);
       } finally {
@@ -126,9 +161,10 @@ function TasksPageInner() {
   }, []);
 
   const selectedTimeframe = useMemo(
-    () => selectedTimeframeId === "ALL"
-      ? null
-      : timeframes.find((tf) => tf.timeframe_id === selectedTimeframeId) || null,
+    () =>
+      selectedTimeframeId === "ALL"
+        ? null
+        : timeframes.find((tf) => tf.timeframe_id === selectedTimeframeId) || null,
     [timeframes, selectedTimeframeId],
   );
 
@@ -184,17 +220,31 @@ function TasksPageInner() {
   const handleProjectChange = (projectId: string) => {
     setSelectedProjectId(projectId);
     setSelectedObjectiveId("ALL");
+    persistFilters({ project_id: projectId, objective_id: "ALL" });
   };
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      const matchesTimeframe = selectedTimeframe
-        ? task.date >= selectedTimeframe.start_date && task.date <= selectedTimeframe.end_date
-        : true;
+      let matchesTimeframe = true;
+
+      if (selectedTimeframe) {
+        const inCurrentWindow =
+          task.date >= selectedTimeframe.start_date &&
+          task.date <= selectedTimeframe.end_date;
+
+        // Carry forward: show "In Progress" tasks from before this timeframe
+        const isCarriedForward =
+          task.status === "In Progress" &&
+          task.date < selectedTimeframe.start_date;
+
+        matchesTimeframe = inCurrentWindow || isCarriedForward;
+      }
+
       const matchesPerson = selectedPersonId === "ALL" || task.person_id === selectedPersonId;
       const matchesProject = selectedProjectId === "ALL" || task.project_id === selectedProjectId;
       const matchesObjective = selectedObjectiveId === "ALL" || task.objective_id === selectedObjectiveId;
       const matchesStatus = selectedStatus === "ALL" || task.status === selectedStatus;
+
       return matchesTimeframe && matchesPerson && matchesProject && matchesObjective && matchesStatus;
     });
   }, [tasks, selectedTimeframe, selectedPersonId, selectedProjectId, selectedObjectiveId, selectedStatus]);
@@ -226,7 +276,7 @@ function TasksPageInner() {
               <label className="mb-1.5 block text-sm font-medium text-slate-600">Timeframe</label>
               <select
                 value={selectedTimeframeId}
-                onChange={(e) => setSelectedTimeframeId(e.target.value)}
+                onChange={(e) => { setSelectedTimeframeId(e.target.value); persistFilters({ timeframe_id: e.target.value }); }}
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
               >
                 <option value="ALL">All Timeframes</option>
@@ -242,7 +292,7 @@ function TasksPageInner() {
               <label className="mb-1.5 block text-sm font-medium text-slate-600">Team Member</label>
               <select
                 value={selectedPersonId}
-                onChange={(e) => setSelectedPersonId(e.target.value)}
+                onChange={(e) => { setSelectedPersonId(e.target.value); persistFilters({ person_id: e.target.value }); }}
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
               >
                 <option value="ALL">All team members</option>
@@ -270,7 +320,7 @@ function TasksPageInner() {
               <label className="mb-1.5 block text-sm font-medium text-slate-600">Objective</label>
               <select
                 value={selectedObjectiveId}
-                onChange={(e) => setSelectedObjectiveId(e.target.value)}
+                onChange={(e) => { setSelectedObjectiveId(e.target.value); persistFilters({ objective_id: e.target.value }); }}
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
               >
                 <option value="ALL">All objectives</option>
@@ -286,7 +336,7 @@ function TasksPageInner() {
               <label className="mb-1.5 block text-sm font-medium text-slate-600">Status</label>
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
+                onChange={(e) => { setSelectedStatus(e.target.value); persistFilters({ status: e.target.value }); }}
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
               >
                 <option value="ALL">All Status</option>
@@ -331,7 +381,7 @@ function TasksPageInner() {
                     <td className="px-5 py-4 align-top text-sm text-slate-900">{task.person_name}</td>
                     <td className="px-5 py-4 align-top text-sm text-slate-900">{task.project_name}</td>
                     <td className="px-5 py-4 align-top text-sm text-slate-900">{task.objective_name}</td>
-                    <td className="px-5 py-4 align-top text-sm text-slate-900">{truncateText(task.description)}</td>
+                    <td className="px-5 py-4 align-top text-sm text-slate-900" title={task.description}>{truncateText(task.description)}</td>
                     <td className="px-5 py-4 align-top">
                       <StatusBadge status={task.status} />
                     </td>
