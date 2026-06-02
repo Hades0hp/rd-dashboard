@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTaskById, updateTask } from "@/lib/sheets/tasks";
+import { createBlocker, getBlockersByTaskId } from "@/lib/sheets/blockers";
 
 export const runtime = "nodejs";
 
@@ -71,6 +72,15 @@ export async function PUT(request: NextRequest, { params }: Props) {
       );
     }
 
+    // Pass timeframe_hours if provided by the form
+    const timeframeHours =
+      body.timeframe_hours?.timeframe_id
+        ? {
+            timeframe_id: String(body.timeframe_hours.timeframe_id),
+            hours: Number(body.timeframe_hours.hours) || 0,
+          }
+        : undefined;
+
     const updated = await updateTask(id, {
       date: String(body.date).trim(),
       person_id: String(body.person_id).trim(),
@@ -88,7 +98,43 @@ export async function PUT(request: NextRequest, { params }: Props) {
         ? String(body.blocker_description).trim()
         : "",
       insight: body.insight ? String(body.insight).trim() : "",
+      timeframe_hours: timeframeHours,
     });
+
+    // Create blocker only if blocker_flag is true AND no blocker exists yet for this task
+    if (body.blocker_flag) {
+      const existingBlockers = await getBlockersByTaskId(id);
+      if (existingBlockers.length === 0) {
+        await createBlocker({
+          blocker_id: `BLK-${Date.now()}`,
+          task_id: updated.task_id,
+          task_description: updated.description,
+          person_id: updated.person_id,
+          person_name: updated.person_name,
+          project_id: updated.project_id,
+          project_name: updated.project_name,
+          objective_id: updated.objective_id,
+          objective_name: updated.objective_name,
+          blocker_title: body.blocker_title
+            ? String(body.blocker_title).trim()
+            : "",
+          blocker_description: body.blocker_description
+            ? String(body.blocker_description).trim()
+            : "",
+          assigned_to_resolve: body.assigned_to_resolve
+            ? String(body.assigned_to_resolve).trim()
+            : "",
+          blocker_status: body.blocker_status
+            ? String(body.blocker_status).trim()
+            : "Open",
+          resolution_notes: body.resolution_notes
+            ? String(body.resolution_notes).trim()
+            : "",
+          created_at: new Date().toISOString(),
+          resolved_at: "",
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,

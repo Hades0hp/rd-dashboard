@@ -34,6 +34,14 @@ export async function buildDashboardData(input: DashboardInput) {
     input.timeframe_ids.includes(t.timeframe_id)
   );
 
+  const selectedTimeframeIds = new Set(
+  selectedTimeframes.map(t => t.timeframe_id)
+  );
+  console.log(
+  "SELECTED TIMEFRAME IDS",
+  [...selectedTimeframeIds]
+);
+
   const ranges = selectedTimeframes.map(t => ({
     start: t.start_date,
     end: t.end_date
@@ -44,10 +52,30 @@ export async function buildDashboardData(input: DashboardInput) {
     return ranges.some(r => d >= r.start && d <= r.end);
   }
 
-  const tasks = allTasks.filter(t => inRange(t.date));
+  // Tasks within the selected timeframe(s)
+  const timeframeTasks = allTasks.filter(t => inRange(t.date));
 
+  // Also include "In Progress" tasks from BEFORE the selected timeframe(s)
+  // so that unfinished work from previous sprints carries forward
+  const earliestStart = ranges.reduce(
+    (min, r) => r.start < min ? r.start : min,
+    ranges[0]?.start || ""
+  );
+
+  const carryForwardTasks = earliestStart
+  ? allTasks.filter(t =>
+      t.date < earliestStart &&
+      ["In Progress", "Blocked"].includes(t.status) &&
+      !timeframeTasks.some(tt => tt.task_id === t.task_id)
+    )
+  : [];
+
+  const tasks = [...timeframeTasks, ...carryForwardTasks];
+
+  // Active blockers shown regardless of timeframe — if a blocker is Open or In Progress
+  // it should always appear on the dashboard irrespective of when it was created
   const activeBlockers = blockers.filter(b =>
-    ["Open", "In Progress"].includes(b.blocker_status) && inRange(b.created_at)
+    ["Open", "In Progress"].includes(b.blocker_status)
   );
 
   /* ---------------- planned effort from timeframes ---------------- */
@@ -76,25 +104,75 @@ export async function buildDashboardData(input: DashboardInput) {
 
   const resolvedPlannedPct = new Map<string, number>();
   for (const [pid, pcts] of plannedPctAccum.entries()) {
-    const avg = pcts.reduce((s, v) => s + v, 0) / pcts.length;
-    resolvedPlannedPct.set(pid, Number(avg.toFixed(1)));
+  const total = pcts.reduce((s, v) => s + v, 0);
+  resolvedPlannedPct.set(pid, Number(total.toFixed(1)));
   }
 
-  function getPlannedPct(projectId: string, fallback: number): number {
-    // If project has explicit timeframe entry, use it — even if it's 0%
-    // Use ?? not || so that 0 is preserved (|| 0 would treat 0 as falsy)
-    if (projectsWithTimeframeEntry.has(projectId)) {
-      return resolvedPlannedPct.get(projectId) ?? 0;
+ function getPlannedPct(projectId: string): number | null {
+  if (!projectsWithTimeframeEntry.has(projectId)) {
+    return null;
+  }
+
+  const value = resolvedPlannedPct.get(projectId);
+
+  if (value === undefined || value <= 0) {
+    return null;
+  }
+
+  return value;
+ }
+
+function getEffectiveHours(task: typeof tasks[number]): number {
+  const logs = task.effort_hours_log || [];
+
+  // New task in selected timeframe
+  const taskCreatedInSelectedTimeframe =
+    ranges.some(
+      r =>
+        task.date >= r.start &&
+        task.date <= r.end
+    );
+
+  let newTaskHours = 0;
+
+  if (taskCreatedInSelectedTimeframe) {
+    if (logs.length === 0) {
+      newTaskHours = Number(task.effort_hours || 0);
+    } else {
+      const loggedTotal = logs.reduce(
+        (sum, log) => sum + Number(log.hours || 0),
+        0
+      );
+
+      newTaskHours = Math.max(
+        Number(task.effort_hours || 0) - loggedTotal,
+        0
+      );
     }
-    // No timeframe entry — fall back to project-level default
-    const fb = Number(fallback);
-    return isNaN(fb) ? 0 : fb;
   }
 
+  const sprintHours = logs
+    .filter(log =>
+      selectedTimeframeIds.has(log.timeframe_id)
+    )
+    .reduce(
+      (sum, log) => sum + Number(log.hours || 0),
+      0
+    );
+
+  return newTaskHours + sprintHours;
+}
   /* ---------------- summary ---------------- */
 
   const total_tasks = tasks.length;
-  const total_hours = tasks.reduce((sum, t) => sum + (t.effort_hours || 0), 0);
+  const total_hours = tasks.reduce(
+  (sum, t) => {
+    const hrs = getEffectiveHours(t);
+
+    return sum + hrs;
+  },
+  0
+);
   const active_projects = new Set(tasks.map(t => t.project_id)).size;
   const active_people = new Set(tasks.map(t => t.person_id)).size;
   const insights_count = tasks.filter(t => t.insight?.trim()).length;
@@ -105,7 +183,7 @@ export async function buildDashboardData(input: DashboardInput) {
   const projectMap = new Map<string, {
     project_id: string;
     project_name: string;
-    planned_effort_pct: number;
+    planned_effort_pct: number | null;
     task_count: number;
     total_hours: number;
   }>();
@@ -115,7 +193,7 @@ export async function buildDashboardData(input: DashboardInput) {
     projectMap.set(p.project_id, {
       project_id: p.project_id,
       project_name: p.name,
-      planned_effort_pct: getPlannedPct(p.project_id, p.planned_effort_pct ?? 0),
+      planned_effort_pct: getPlannedPct(p.project_id),
       task_count: 0,
       total_hours: 0
     });
@@ -126,14 +204,14 @@ export async function buildDashboardData(input: DashboardInput) {
     const existing = projectMap.get(t.project_id);
     if (existing) {
       existing.task_count++;
-      existing.total_hours += t.effort_hours || 0;
+      existing.total_hours += getEffectiveHours(t);
     } else {
       projectMap.set(t.project_id, {
         project_id: t.project_id,
         project_name: t.project_name,
-        planned_effort_pct: getPlannedPct(t.project_id, 0),
+        planned_effort_pct: getPlannedPct(t.project_id),
         task_count: 1,
-        total_hours: t.effort_hours || 0
+        total_hours: getEffectiveHours(t)
       });
     }
   }
@@ -141,19 +219,18 @@ export async function buildDashboardData(input: DashboardInput) {
   const project_effort = Array.from(projectMap.values())
     .map(p => {
       const hasActivity = p.task_count > 0;
-      const actual = hasActivity && total_hours > 0
-        ? Number(((p.total_hours / total_hours) * 100).toFixed(1))
+      const actual = hasActivity && total_hours > 0 && p.total_hours > 0
+      ? Number(((p.total_hours / total_hours) * 100).toFixed(1))
+      : null;
+      // Show planned as null if 0 and not explicitly set in timeframe
+      const plannedDisplay = p.planned_effort_pct;
+      const gap = actual !== null && plannedDisplay !== null
+        ? Number((plannedDisplay - actual).toFixed(1))
         : null;
-      const gap = actual !== null
-        ? Number((p.planned_effort_pct - actual).toFixed(1))
-        : null;
-      return {
-        ...p,
-        actual_effort_pct: actual,
-        gap
-      };
+      return { ...p, planned_effort_pct: plannedDisplay, actual_effort_pct: actual, gap };
     })
-    .sort((a, b) => b.planned_effort_pct - a.planned_effort_pct);
+    .sort((a, b) => (b.planned_effort_pct ?? -1) - (a.planned_effort_pct ?? -1));
+
 
   /* ---------------- objective effort ---------------- */
 
@@ -170,7 +247,7 @@ export async function buildDashboardData(input: DashboardInput) {
     const existing = objectiveMap.get(t.objective_id);
     if (existing) {
       existing.task_count++;
-      existing.total_hours += t.effort_hours || 0;
+      existing.total_hours += getEffectiveHours(t);
     } else {
       objectiveMap.set(t.objective_id, {
         objective_id: t.objective_id,
@@ -178,7 +255,7 @@ export async function buildDashboardData(input: DashboardInput) {
         project_id: t.project_id,
         project_name: t.project_name,
         task_count: 1,
-        total_hours: t.effort_hours || 0
+        total_hours: getEffectiveHours(t)
       });
     }
   }
@@ -188,8 +265,12 @@ export async function buildDashboardData(input: DashboardInput) {
       const pct = total_hours > 0 ? (o.total_hours / total_hours) * 100 : 0;
       return { ...o, actual_effort_pct: Number(pct.toFixed(1)) };
     })
-    .sort((a, b) => b.actual_effort_pct - a.actual_effort_pct);
-
+   .sort((a, b) => {
+  if (b.task_count !== a.task_count) {
+    return b.task_count - a.task_count;
+  }
+  return b.actual_effort_pct - a.actual_effort_pct;
+});
   /* ---------------- people contribution ---------------- */
 
   const peopleMap = new Map<string, {
@@ -205,14 +286,14 @@ export async function buildDashboardData(input: DashboardInput) {
     const existing = peopleMap.get(t.person_id);
     if (existing) {
       existing.task_count++;
-      existing.total_hours += t.effort_hours || 0;
+      existing.total_hours += getEffectiveHours(t);
       if (t.insight?.trim()) existing.insights_count++;
     } else {
       peopleMap.set(t.person_id, {
         person_id: t.person_id,
         person_name: t.person_name,
         task_count: 1,
-        total_hours: t.effort_hours || 0,
+        total_hours: getEffectiveHours(t),
         blockers_count: 0,
         insights_count: t.insight?.trim() ? 1 : 0
       });

@@ -68,7 +68,7 @@ export default function BlockersPage() {
   const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("All");
-  const [selectedTimeframeId, setSelectedTimeframeId] = useState("");
+  const [selectedTimeframeId, setSelectedTimeframeId] = useState("all");
 
   async function loadData() {
     try {
@@ -82,10 +82,7 @@ export default function BlockersPage() {
       const loadedTimeframes = timeframesJson?.data || [];
       setBlockers(loadedBlockers);
       setTimeframes(loadedTimeframes);
-      const activeTimeframe =
-        loadedTimeframes.find((tf: Timeframe) => tf.status === "Active") ||
-        loadedTimeframes[0];
-      if (activeTimeframe) setSelectedTimeframeId(activeTimeframe.timeframe_id);
+      setSelectedTimeframeId("all");
     } catch (error) {
       console.error("Error loading blockers page:", error);
     } finally {
@@ -102,20 +99,25 @@ export default function BlockersPage() {
 
   const filteredBlockers = useMemo(() => {
     return blockers.filter((blocker) => {
+      const matchesStatus = statusFilter === "All" || blocker.blocker_status === statusFilter;
+
+      // "All Timeframes" — skip date filtering entirely
+      if (selectedTimeframeId === "all") return matchesStatus;
+
+      // Filter ALL blockers (any status) by their created_at date against the selected timeframe
       const blockerDate = blocker.created_at ? blocker.created_at.slice(0, 10) : "";
       const matchesTimeframe = selectedTimeframe
         ? blockerDate >= selectedTimeframe.start_date && blockerDate <= selectedTimeframe.end_date
         : true;
-      const matchesStatus = statusFilter === "All" || blocker.blocker_status === statusFilter;
+
       return matchesTimeframe && matchesStatus;
     });
-  }, [blockers, selectedTimeframe, statusFilter]);
+  }, [blockers, selectedTimeframe, selectedTimeframeId, statusFilter]);
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <div className="mx-auto max-w-[1500px] px-8 py-8">
 
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-4xl font-bold tracking-tight text-slate-950">Blockers</h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -123,7 +125,6 @@ export default function BlockersPage() {
           </p>
         </div>
 
-        {/* Filters card */}
         <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
@@ -133,6 +134,7 @@ export default function BlockersPage() {
                 onChange={(e) => setSelectedTimeframeId(e.target.value)}
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
               >
+                <option value="all">All Timeframes</option>
                 {timeframes.map((tf) => (
                   <option key={tf.timeframe_id} value={tf.timeframe_id}>
                     {formatTimeframeLabel(tf)}
@@ -156,7 +158,6 @@ export default function BlockersPage() {
           </div>
         </div>
 
-        {/* Table card */}
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {loading ? (
             <div className="p-8 text-center text-sm text-slate-500">Loading blockers...</div>

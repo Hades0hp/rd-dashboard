@@ -3,10 +3,28 @@ import { Task } from "@/lib/types/task";
 import { createId } from "@/lib/utils/ids";
 import { getNowISOString, getTodayDateString } from "@/lib/utils/dates";
 
-const TASKS_RANGE = "Tasks!A1:Q5000";
-const TASKS_APPEND_RANGE = "Tasks!A:Q";
+// Columns A-Q = original 17 cols, R = blocker_ids (ignored), S = effort_hours_log
+const TASKS_RANGE = "Tasks!A1:S5000";
+const TASKS_APPEND_RANGE = "Tasks!A:S";
+
+export type HoursLogEntry = {
+  timeframe_id: string;
+  hours: number;
+  logged_at?: string;
+};
+
+function parseHoursLog(raw: string): HoursLogEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function mapRowToTask(row: string[]): Task {
+
   return {
     task_id: row[0] || "",
     date: row[1] || "",
@@ -25,6 +43,8 @@ function mapRowToTask(row: string[]): Task {
     insight: row[14] || "",
     created_at: row[15] || "",
     updated_at: row[16] || "",
+    // row[17] = blocker_ids — skip it
+    effort_hours_log: parseHoursLog(row[18] || ""),
   };
 }
 
@@ -69,23 +89,18 @@ export async function getFilteredTasks(
   if (filters.project_id) {
     tasks = tasks.filter((task) => task.project_id === filters.project_id);
   }
-
   if (filters.objective_id) {
     tasks = tasks.filter((task) => task.objective_id === filters.objective_id);
   }
-
   if (filters.person_id) {
     tasks = tasks.filter((task) => task.person_id === filters.person_id);
   }
-
   if (filters.status) {
     tasks = tasks.filter((task) => task.status === filters.status);
   }
-
   if (filters.start_date) {
     tasks = tasks.filter((task) => task.date >= filters.start_date!);
   }
-
   if (filters.end_date) {
     tasks = tasks.filter((task) => task.date <= filters.end_date!);
   }
@@ -131,6 +146,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     insight: input.insight || "",
     created_at: now,
     updated_at: now,
+    effort_hours_log: [],
   };
 
   await sheets.spreadsheets.values.append({
@@ -138,27 +154,15 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     range: TASKS_APPEND_RANGE,
     valueInputOption: "USER_ENTERED",
     requestBody: {
-      values: [
-        [
-          task.task_id,
-          task.date,
-          task.person_id,
-          task.person_name,
-          task.project_id,
-          task.project_name,
-          task.objective_id,
-          task.objective_name,
-          task.description,
-          task.task_type,
-          task.status,
-          task.effort_hours,
-          String(task.blocker_flag),
-          task.blocker_description,
-          task.insight,
-          task.created_at,
-          task.updated_at,
-        ],
-      ],
+      values: [[
+        task.task_id, task.date, task.person_id, task.person_name,
+        task.project_id, task.project_name, task.objective_id, task.objective_name,
+        task.description, task.task_type, task.status, task.effort_hours,
+        String(task.blocker_flag), task.blocker_description, task.insight,
+        task.created_at, task.updated_at,
+        "", // col R = blocker_ids — leave blank
+        JSON.stringify(task.effort_hours_log), // col S
+      ]],
     },
   });
 
@@ -180,6 +184,7 @@ type UpdateTaskInput = {
   blocker_flag: boolean;
   blocker_description?: string;
   insight?: string;
+  timeframe_hours?: { timeframe_id: string; hours: number };
 };
 
 export async function updateTask(
@@ -208,6 +213,44 @@ export async function updateTask(
   const currentRow = rows[rowIndex];
   const now = getNowISOString();
 
+  // Update hours log if timeframe_hours provided
+let hoursLog = parseHoursLog(currentRow[18] || "");
+const existingTotalHours = Number(currentRow[11] || 0);
+
+if (
+  input.timeframe_hours &&
+  Number(input.timeframe_hours.hours) > 0
+) {
+
+  // Legacy task with no sprint history yet
+  if (
+    hoursLog.length === 0 &&
+    existingTotalHours > 0
+  ) {
+    hoursLog.push({
+      timeframe_id: "Previous hours",
+      hours: existingTotalHours,
+      logged_at: currentRow[15] || now,
+    });
+  }
+
+  const { timeframe_id, hours } = input.timeframe_hours;
+
+  hoursLog.push({
+    timeframe_id,
+    hours: Number(hours || 0),
+    logged_at: now,
+  });
+}
+
+const totalEffortHours =
+  hoursLog.length > 0
+    ? hoursLog.reduce(
+        (sum, entry) => sum + Number(entry.hours || 0),
+        0
+      )
+    : existingTotalHours;
+  
   const updated: Task = {
     task_id: taskId,
     date: input.date,
@@ -220,42 +263,31 @@ export async function updateTask(
     description: input.description,
     task_type: input.task_type,
     status: input.status,
-    effort_hours: input.effort_hours,
+    effort_hours: totalEffortHours,
     blocker_flag: input.blocker_flag,
     blocker_description: input.blocker_description || "",
     insight: input.insight || "",
     created_at: currentRow[15] || now,
     updated_at: now,
+    effort_hours_log: hoursLog,
   };
 
   const sheetRowNumber = rowIndex + 1;
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Tasks!A${sheetRowNumber}:Q${sheetRowNumber}`,
+    range: `Tasks!A${sheetRowNumber}:S${sheetRowNumber}`,
     valueInputOption: "USER_ENTERED",
     requestBody: {
-      values: [
-        [
-          updated.task_id,
-          updated.date,
-          updated.person_id,
-          updated.person_name,
-          updated.project_id,
-          updated.project_name,
-          updated.objective_id,
-          updated.objective_name,
-          updated.description,
-          updated.task_type,
-          updated.status,
-          updated.effort_hours,
-          String(updated.blocker_flag),
-          updated.blocker_description,
-          updated.insight,
-          updated.created_at,
-          updated.updated_at,
-        ],
-      ],
+      values: [[
+        updated.task_id, updated.date, updated.person_id, updated.person_name,
+        updated.project_id, updated.project_name, updated.objective_id, updated.objective_name,
+        updated.description, updated.task_type, updated.status, updated.effort_hours,
+        String(updated.blocker_flag), updated.blocker_description, updated.insight,
+        updated.created_at, updated.updated_at,
+        currentRow[17] || "", // col R = blocker_ids — preserve existing value
+        JSON.stringify(updated.effort_hours_log), // col S
+      ]],
     },
   });
 

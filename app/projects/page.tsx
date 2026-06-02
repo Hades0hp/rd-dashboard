@@ -35,7 +35,6 @@ type Timeframe = {
   planned_effort?: TimeframePlannedEffort[];
 };
 
-// Priority derived from planned effort % — no manual edit needed
 function derivePriority(plannedPct: number): "High" | "Medium" | "Low" {
   if (plannedPct >= 30) return "High";
   if (plannedPct >= 10) return "Medium";
@@ -125,20 +124,17 @@ export default function ProjectsPage() {
     if (baseProjects.length === 0) return [];
 
     if (selectedTimeframeId === "ALL") {
-      // Planned effort = average only across timeframes that have planned_effort set
-      // (ignores timeframes with empty planned_effort)
       const plannedSumMap = new Map<string, number>();
       const plannedCountMap = new Map<string, number>();
 
       allTimeframes.forEach((tf) => {
         if (!tf.planned_effort || tf.planned_effort.length === 0) return;
         tf.planned_effort.forEach((e) => {
-          plannedSumMap.set(e.project_id, (plannedSumMap.get(e.project_id) || 0) + e.planned_pct);
-          plannedCountMap.set(e.project_id, (plannedCountMap.get(e.project_id) || 0) + 1);
+          plannedSumMap.set(e.project_id, (plannedSumMap.get(e.project_id) ?? 0) + e.planned_pct);
+          plannedCountMap.set(e.project_id, (plannedCountMap.get(e.project_id) ?? 0) + 1);
         });
       });
 
-      // Progress = done / total across ALL tasks
       const tasksByProject = new Map<string, Task[]>();
       allTasks.forEach((task) => {
         const existing = tasksByProject.get(task.project_id) || [];
@@ -146,8 +142,8 @@ export default function ProjectsPage() {
       });
 
       return baseProjects.map((project) => {
-        const sum = plannedSumMap.get(project.project_id) || 0;
-        const count = plannedCountMap.get(project.project_id) || 0;
+        const sum = plannedSumMap.get(project.project_id) ?? 0;
+        const count = plannedCountMap.get(project.project_id) ?? 0;
         const plannedPct = count > 0
           ? Math.round(sum / count)
           : (project.planned_effort_pct ?? 0);
@@ -165,13 +161,15 @@ export default function ProjectsPage() {
         return {
           ...project,
           planned_effort_pct: plannedPct,
+          // null means "not set in any timeframe" — show — in UI
+          planned_effort_pct_display: count > 0 ? plannedPct : null,
           progress_pct: progressPct,
           priority: derivePriority(plannedPct),
         };
-      });
+      }).sort((a, b) => (b.planned_effort_pct ?? 0) - (a.planned_effort_pct ?? 0));
     }
 
-    // Specific timeframe selected
+    // Specific timeframe — build map of explicitly set projects
     const plannedEffortMap = new Map<string, number>();
     (selectedTimeframe?.planned_effort || []).forEach((e) => {
       plannedEffortMap.set(e.project_id, e.planned_pct);
@@ -189,9 +187,15 @@ export default function ProjectsPage() {
       });
 
     return baseProjects.map((project) => {
-      const plannedPct = plannedEffortMap.has(project.project_id)
+      // If project is in the timeframe's planned_effort (even as 0), use that value
+      // If not set at all in this timeframe, show — (null)
+      const inTimeframe = plannedEffortMap.has(project.project_id);
+      const plannedPct = inTimeframe
         ? plannedEffortMap.get(project.project_id)!
-        : (project.planned_effort_pct ?? 0);
+        : 0;
+      const plannedPctDisplay = inTimeframe
+        ? plannedEffortMap.get(project.project_id)!
+        : null;
 
       const projectTasks = tasksByProject.get(project.project_id) || [];
       const doneHours = projectTasks
@@ -206,10 +210,11 @@ export default function ProjectsPage() {
       return {
         ...project,
         planned_effort_pct: plannedPct,
+        planned_effort_pct_display: plannedPctDisplay,
         progress_pct: progressPct,
         priority: derivePriority(plannedPct),
       };
-    });
+    }).sort((a, b) => (b.planned_effort_pct ?? 0) - (a.planned_effort_pct ?? 0));
   }, [baseProjects, allTimeframes, allTasks, selectedTimeframeId, selectedTimeframe]);
 
   return (
@@ -229,7 +234,6 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Timeframe selector */}
             <select
               value={selectedTimeframeId}
               onChange={(e) => setSelectedTimeframeId(e.target.value)}
@@ -258,51 +262,33 @@ export default function ProjectsPage() {
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Project
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Objective
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Priority
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Planned Effort %
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Progress %
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Actions
-                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Project</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Objective</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Priority</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Planned Effort %</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Progress %</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Actions</th>
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-slate-200 bg-white">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
-                        Loading projects...
-                      </td>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">Loading projects...</td>
                     </tr>
                   ) : enrichedProjects.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
-                        No projects found.
-                      </td>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">No projects found.</td>
                     </tr>
                   ) : (
                     enrichedProjects.map((project) => (
                       <tr key={project.project_id} className="align-top">
-                        <td className="px-4 py-4 text-sm font-medium text-slate-900">
-                          {project.name}
-                        </td>
+                        <td className="px-4 py-4 text-sm font-medium text-slate-900">{project.name}</td>
                         <td className="max-w-[320px] px-4 py-4 text-sm text-slate-700">
-                          <div className="line-clamp-2">{project.objective || "-"}</div>
+                          <div className="line-clamp-2 cursor-default" title={project.objective || ""}>
+                            {project.objective || "-"}
+                          </div>
                         </td>
                         <td className="px-4 py-4 text-sm">
                           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${priorityBadge(project.priority ?? "Low")}`}>
@@ -310,7 +296,9 @@ export default function ProjectsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-4 text-sm text-slate-700">
-                          {project.planned_effort_pct ?? 0}%
+                          {project.planned_effort_pct_display !== null && project.planned_effort_pct_display !== undefined
+                            ? `${project.planned_effort_pct_display}%`
+                            : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-4 py-4 text-sm text-slate-700">
                           <ProgressBar value={project.progress_pct ?? 0} />
@@ -322,18 +310,8 @@ export default function ProjectsPage() {
                         </td>
                         <td className="px-4 py-4 text-right text-sm">
                           <div className="flex justify-end gap-2">
-                            <Link
-                              href={`/projects/${project.project_id}`}
-                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                            >
-                              View
-                            </Link>
-                            <Link
-                              href={`/projects/${project.project_id}/edit`}
-                              className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-                            >
-                              Edit
-                            </Link>
+                            <Link href={`/projects/${project.project_id}`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">View</Link>
+                            <Link href={`/projects/${project.project_id}/edit`} className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800">Edit</Link>
                           </div>
                         </td>
                       </tr>

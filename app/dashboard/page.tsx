@@ -26,9 +26,9 @@ type DashboardData = {
     project_name: string;
     task_count: number;
     total_hours: number;
-    planned_effort_pct: number;
-    actual_effort_pct: number;
-    gap: number;
+    planned_effort_pct: number | null;
+    actual_effort_pct: number | null;
+    gap: number | null;
   }>;
   objective_effort: Array<{
     objective_id: string;
@@ -197,18 +197,49 @@ export default function DashboardPage() {
   }, [dashboard]);
 
   const filteredObjectiveEffort = useMemo(() => {
-    if (!dashboard) return [];
-    if (selectedProjectForObjectives === "ALL") return dashboard.objective_effort;
-    const selectedProject = projectOptions.find((p) => p.project_id === selectedProjectForObjectives);
-    if (!selectedProject) return dashboard.objective_effort;
-    return dashboard.objective_effort.filter((item) => item.project_id === selectedProject.project_id || item.project_name === selectedProject.project_name);
-  }, [dashboard, selectedProjectForObjectives, projectOptions]);
+  if (!dashboard) return [];
+
+  let data = dashboard.objective_effort;
+
+  if (selectedProjectForObjectives !== "ALL") {
+    const selectedProject = projectOptions.find(
+      (p) => p.project_id === selectedProjectForObjectives
+    );
+
+    if (selectedProject) {
+      data = data.filter(
+        (item) =>
+          item.project_id === selectedProject.project_id ||
+          item.project_name === selectedProject.project_name
+      );
+    }
+  }
+
+  return [...data].sort((a, b) => {
+    if (b.task_count !== a.task_count) {
+      return b.task_count - a.task_count;
+    }
+
+    return b.actual_effort_pct - a.actual_effort_pct;
+  });
+}, [dashboard, selectedProjectForObjectives, projectOptions]);
 
   const activeBlockers = useMemo(() => {
     if (!dashboard) return [];
     return dashboard.blockers.filter(
       (item) => item.blocker_status === "Open" || item.blocker_status === "In Progress"
     );
+  }, [dashboard]);
+
+  // FIX: Sort project effort by planned_effort_pct descending, nulls last
+  const sortedProjectEffort = useMemo(() => {
+    if (!dashboard) return [];
+    return [...dashboard.project_effort].sort((a, b) => {
+      if (a.planned_effort_pct === null && b.planned_effort_pct === null) return 0;
+      if (a.planned_effort_pct === null) return 1;
+      if (b.planned_effort_pct === null) return -1;
+      return b.planned_effort_pct - a.planned_effort_pct;
+    });
   }, [dashboard]);
 
   return (
@@ -231,20 +262,8 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-400">Select multiple timeframes to view combined results.</p>
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={selectActiveTimeframe}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Select Active
-              </button>
-              <button
-                type="button"
-                onClick={clearAllTimeframes}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Clear All
-              </button>
+              <button type="button" onClick={selectActiveTimeframe} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Select Active</button>
+              <button type="button" onClick={clearAllTimeframes} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Clear All</button>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -272,13 +291,9 @@ export default function DashboardPage() {
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-            Loading dashboard...
-          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading dashboard...</div>
         ) : !dashboard ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-            No dashboard data available. Select at least one timeframe.
-          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">No dashboard data available. Select at least one timeframe.</div>
         ) : (
           <div className="space-y-5">
 
@@ -304,7 +319,7 @@ export default function DashboardPage() {
               title="Project Effort"
               subtitle="Combined actual effort % by project across selected timeframes."
             >
-              {dashboard.project_effort.length === 0 ? (
+              {sortedProjectEffort.length === 0 ? (
                 <p className="text-sm text-slate-400">No project activity found.</p>
               ) : (
                 <table className="w-full text-left text-sm">
@@ -318,15 +333,26 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboard.project_effort.map((item) => (
+                    {sortedProjectEffort.map((item) => (
                       <tr key={item.project_id} className="border-b border-slate-100 last:border-0">
                         <td className="py-3 pr-4 font-medium text-slate-900">{item.project_name}</td>
                         <td className="py-3 pr-4 text-slate-700">
-                          {item.actual_effort_pct !== null ? `${item.actual_effort_pct}%` : <span className="text-slate-300">—</span>}
+                          {item.actual_effort_pct !== null
+                            ? `${item.actual_effort_pct}%`
+                            : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="py-3 pr-4 text-slate-700">{item.planned_effort_pct}%</td>
+                        {/* FIX: null always shows —, any number (including 0) shows as % */}
                         <td className="py-3 pr-4 text-slate-700">
-                          {item.gap === null ? <span className="text-slate-300">—</span> : item.gap > 0 ? `+${item.gap}%` : `${item.gap}%`}
+                          {item.planned_effort_pct !== null
+                            ? `${item.planned_effort_pct}%`
+                            : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="py-3 pr-4 text-slate-700">
+                          {item.gap === null
+                            ? <span className="text-slate-300">—</span>
+                            : item.gap > 0
+                            ? `+${item.gap}%`
+                            : `${item.gap}%`}
                         </td>
                         <td className="py-3 text-slate-700">{item.total_hours}h</td>
                       </tr>
@@ -423,14 +449,9 @@ export default function DashboardPage() {
 
             {/* Blockers + Insights */}
             <div className="grid gap-5 xl:grid-cols-2">
-              <SectionCard
-                title="Blockers"
-                subtitle="Only active blockers are shown here."
-              >
+              <SectionCard title="Blockers" subtitle="Only active blockers are shown here.">
                 {activeBlockers.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-400">
-                    No blockers found.
-                  </div>
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-400">No blockers found.</div>
                 ) : (
                   <div className="space-y-3">
                     {activeBlockers.map((item) => (
@@ -451,28 +472,18 @@ export default function DashboardPage() {
                             {item.blocker_status}
                           </span>
                         </div>
-                        <div className="mt-1.5 text-sm font-semibold text-slate-900">
-                          {item.blocker_title || "Untitled Blocker"}
-                        </div>
-                        <div className="mt-1 text-sm leading-5 text-slate-600">
-                          {item.blocker_description}
-                        </div>
+                        <div className="mt-1.5 text-sm font-semibold text-slate-900">{item.blocker_title || "Untitled Blocker"}</div>
+                        <div className="mt-1 text-sm leading-5 text-slate-600">{item.blocker_description}</div>
                         <div className="mt-3 flex items-center gap-4">
                           <div className="flex items-center gap-1.5">
-                            <span
-                              title={item.person_name}
-                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-200 text-[10px] font-bold text-rose-800"
-                            >
+                            <span title={item.person_name} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-200 text-[10px] font-bold text-rose-800">
                               {item.person_name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase()}
                             </span>
                             <span className="text-xs text-slate-500">Raised</span>
                           </div>
                           {item.assigned_to_resolve && (
                             <div className="flex items-center gap-1.5">
-                              <span
-                                title={item.assigned_to_resolve}
-                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-800"
-                              >
+                              <span title={item.assigned_to_resolve} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-800">
                                 {item.assigned_to_resolve.split(" ").slice(0, 2).map((n: string) => n[0]).join("").toUpperCase()}
                               </span>
                               <span className="text-xs text-slate-500">Assigned</span>
@@ -485,24 +496,14 @@ export default function DashboardPage() {
                 )}
               </SectionCard>
 
-              <SectionCard
-                title="Insights"
-                subtitle="Combined insight list across selected timeframes."
-              >
+              <SectionCard title="Insights" subtitle="Combined insight list across selected timeframes.">
                 {dashboard.insights.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-400">
-                    No insights found.
-                  </div>
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-400">No insights found.</div>
                 ) : (
                   <div className="space-y-3">
                     {dashboard.insights.map((item) => (
-                      <div
-                        key={item.task_id}
-                        className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-                      >
-                        <p className="text-xs text-slate-400">
-                          {item.date} • {item.person_name} • {item.project_name} • {item.objective_name}
-                        </p>
+                      <div key={item.task_id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs text-slate-400">{item.date} • {item.person_name} • {item.project_name} • {item.objective_name}</p>
                         <p className="mt-1 text-sm text-slate-700">{item.insight}</p>
                       </div>
                     ))}

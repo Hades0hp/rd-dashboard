@@ -4,6 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
+type Timeframe = {
+  timeframe_id: string;
+  name?: string;
+  start_date: string;
+  end_date: string;
+};
+
 type Task = {
   task_id: string;
   date: string;
@@ -17,6 +24,12 @@ type Task = {
   task_type: string;
   status: string;
   effort_hours: number;
+
+  effort_hours_log?: {
+    timeframe_id: string;
+    hours: number;
+  }[];
+
   blocker_flag: boolean;
   blocker_description?: string;
   insight?: string;
@@ -52,13 +65,39 @@ function SummaryRow({
 
 export default function TaskDetailPage() {
   const params = useParams();
+  console.log("PARAMS =", params);
+
   const rawId = params?.id;
   const taskId = Array.isArray(rawId) ? rawId[0] : rawId;
+  console.log("PARAMS:", params);
+  console.log("TASK ID:", taskId);
 
   const [task, setTask] = useState<Task | null>(null);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
   const [loading, setLoading] = useState(true);
   const [blockerError, setBlockerError] = useState("");
+  const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
+  
+  const sprintHistory =
+  [...(task?.effort_hours_log || [])]
+    .reverse()
+    .map((log) => {
+      const timeframe = timeframes.find(
+        (tf) => tf.timeframe_id === log.timeframe_id
+      );
+
+      return {
+        timeframeName:
+          timeframe?.name || log.timeframe_id,
+        hours: Number(log.hours || 0),
+      };
+    });
+
+  const totalLoggedHours =
+  task?.effort_hours_log?.reduce(
+    (sum, log) => sum + Number(log.hours || 0),
+    0
+  ) ?? task?.effort_hours ?? 0;
 
   useEffect(() => {
     async function loadData() {
@@ -81,6 +120,13 @@ export default function TaskDetailPage() {
         try {
           const blockersRes = await fetch(`/api/tasks/${taskId}/blockers`, { cache: "no-store" });
           const blockersJson = await blockersRes.json();
+          const timeframesRes = await fetch("/api/timeframes", {
+  cache: "no-store",
+});
+
+const timeframesJson = await timeframesRes.json();
+
+setTimeframes(timeframesJson?.data || []);
 
           if (blockersRes.ok) {
             setBlockers(blockersJson?.data || []);
@@ -169,8 +215,9 @@ export default function TaskDetailPage() {
         </div>
 
         {/* Two-column layout */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.4fr]">
-
+       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.4fr]">
+          
+          
           {/* Left — Summary card */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-bold text-slate-900">Summary</h2>
@@ -181,99 +228,165 @@ export default function TaskDetailPage() {
             <SummaryRow label="Objective" value={task.objective_name} />
             <SummaryRow label="Task Type" value={task.task_type} />
             <SummaryRow label="Status" value={task.status} />
-            <SummaryRow label="Effort Hours" value={task.effort_hours} />
+            <SummaryRow label="Total Logged Hours" value={`${totalLoggedHours}h`}/>
             <SummaryRow label="Blocked" value={task.blocker_flag ? "Yes" : "No"} />
             </div>
           </div>
 
-          {/* Right — Detail cards */}
-          <div className="flex flex-col gap-6">
+         {/* Right — Detail cards */}
+<div className="flex flex-col gap-6">
 
-            {/* Description */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-3 text-lg font-bold text-slate-900">Description</h2>
-              <p className="text-sm leading-7 text-slate-700">
-                {task.description || "-"}
-              </p>
+  {/* Description */}
+  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 className="mb-3 text-lg font-bold text-slate-900">
+      Description
+    </h2>
+
+    <p className="text-sm leading-7 text-slate-700">
+      {task.description || "-"}
+    </p>
+  </div>
+
+  {/* Insight */}
+  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 className="mb-3 text-lg font-bold text-slate-900">
+      Insight
+    </h2>
+
+    <p className="text-sm leading-7 text-slate-700">
+      {task.insight || "-"}
+    </p>
+  </div>
+
+  {/* Blocker Details */}
+  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 className="mb-3 text-lg font-bold text-slate-900">
+      Blocker Details
+    </h2>
+
+    {!task.blocker_flag ? (
+      <p className="text-sm text-slate-400">
+        No blocker for this task.
+      </p>
+    ) : blockerError ? (
+      <p className="text-sm text-red-500">
+        Could not load blocker details: {blockerError}
+      </p>
+    ) : blockers.length === 0 ? (
+      <div className="space-y-3">
+        <p className="text-sm text-slate-400">
+          Task is blocked but no blocker record found.
+        </p>
+
+        {task.blocker_description ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-medium text-slate-500">
+              Legacy blocker text
             </div>
 
-            {/* Insight */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-3 text-lg font-bold text-slate-900">Insight</h2>
-              <p className="text-sm leading-7 text-slate-700">
-                {task.insight || "-"}
-              </p>
+            <div className="mt-1 text-sm text-slate-700">
+              {task.blocker_description}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    ) : (
+      <div className="space-y-4">
+        {blockers.map((b) => (
+          <div
+            key={b.blocker_id}
+            className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="text-sm font-semibold text-slate-900">
+                {b.blocker_title || "Blocker"}
+              </div>
+
+              <span
+                className={`shrink-0 rounded-full px-3 py-0.5 text-xs font-semibold ${
+                  b.blocker_status === "Resolved"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : b.blocker_status === "In Progress"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {b.blocker_status || "Open"}
+              </span>
             </div>
 
-            {/* Blocker Details */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-3 text-lg font-bold text-slate-900">Blocker Details</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              {b.blocker_description || "-"}
+            </p>
 
-              {!task.blocker_flag ? (
-                <p className="text-sm text-slate-400">No blocker for this task.</p>
-              ) : blockerError ? (
-                <p className="text-sm text-red-500">
-                  Could not load blocker details: {blockerError}
-                </p>
-              ) : blockers.length === 0 ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-slate-400">
-                    Task is blocked but no blocker record found.
-                  </p>
-                  {task.blocker_description ? (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-xs font-medium text-slate-500">Legacy blocker text</div>
-                      <div className="mt-1 text-sm text-slate-700">{task.blocker_description}</div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {blockers.map((b) => (
-                    <div
-                      key={b.blocker_id}
-                      className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="text-sm font-semibold text-slate-900">
-                          {b.blocker_title || "Blocker"}
-                        </div>
-                        <span className={`shrink-0 rounded-full px-3 py-0.5 text-xs font-semibold ${
-                          b.blocker_status === "Resolved"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : b.blocker_status === "In Progress"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-red-100 text-red-700"
-                        }`}>
-                          {b.blocker_status || "Open"}
-                        </span>
-                      </div>
+            <div className="mt-3 flex flex-col gap-1 text-xs text-slate-500">
+              <span>
+                <span className="font-medium text-slate-700">
+                  Assigned to:
+                </span>{" "}
+                {b.assigned_to_resolve || "-"}
+              </span>
 
-                      <p className="mt-2 text-sm leading-6 text-slate-700">
-                        {b.blocker_description || "-"}
-                      </p>
-
-                      <div className="mt-3 flex flex-col gap-1 text-xs text-slate-500">
-                        <span>
-                          <span className="font-medium text-slate-700">Assigned to: </span>
-                          {b.assigned_to_resolve || "-"}
-                        </span>
-                        {b.resolution_notes && (
-                          <span>
-                            <span className="font-medium text-slate-700">Resolution: </span>
-                            {b.resolution_notes}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {b.resolution_notes && (
+                <span>
+                  <span className="font-medium text-slate-700">
+                    Resolution:
+                  </span>{" "}
+                  {b.resolution_notes}
+                </span>
               )}
             </div>
-
           </div>
-        </div>
+        ))}
       </div>
-    </main>
-  );
+    )}
+  </div>
+
+</div>
+
+{/* CLOSE THE 2-COLUMN GRID */}
+</div>
+
+{/* Sprint History BELOW EVERYTHING */}
+
+{Array.isArray(sprintHistory) && sprintHistory.length > 0 && (
+  <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 className="mb-4 text-lg font-bold text-slate-900">
+      Sprint History
+    </h2>
+
+    <div className="space-y-3">
+      {sprintHistory.map((entry, index) => (
+        <div
+          key={`${entry.timeframeName}-${index}`}
+          className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+        >
+          <span className="text-sm text-slate-700">
+            {entry.timeframeName}
+          </span>
+
+          <span className="text-sm font-semibold text-slate-900">
+            {entry.hours}h
+          </span>
+        </div>
+      ))}
+    </div>
+
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-slate-700">
+          Total
+        </span>
+
+        <span className="text-sm font-bold text-slate-900">
+          {totalLoggedHours}h
+        </span>
+      </div>
+    </div>
+  </div>
+)}
+
+</div>
+</main>
+ );
 }

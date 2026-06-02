@@ -116,7 +116,6 @@ export async function updateBlockerStatus(input: {
   blocker_status: "Open" | "In Progress" | "Resolved";
   resolution_notes?: string;
 }): Promise<void> {
-  // Fetch the full row first so we can preserve created_at (col O / index 14)
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: BLOCKERS_RANGE,
@@ -141,7 +140,6 @@ export async function updateBlockerStatus(input: {
   const resolvedAt =
     input.blocker_status === "Resolved" ? new Date().toISOString() : "";
 
-  // Single write: M=blocker_status, N=resolution_notes, O=created_at (preserved), P=resolved_at
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Blockers!M${rowNumber}:P${rowNumber}`,

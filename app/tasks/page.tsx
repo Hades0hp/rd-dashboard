@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 type Task = {
   task_id: string;
@@ -18,6 +18,12 @@ type Task = {
   status: string;
   effort_hours: number;
   blocker_flag: boolean;
+  created_at?: string;
+  updated_at?: string;
+  effort_hours_log?: {
+  timeframe_id: string;
+  hours: number;
+}[];
 };
 
 type Timeframe = {
@@ -81,6 +87,20 @@ function StatusBadge({ status }: { status: string }) {
 function TasksPageInner() {
   const searchParams = useSearchParams();
   const STORAGE_KEY = "tasks_filters";
+  const pathname = usePathname();
+
+  // Clear saved filters when user navigates away from /tasks/* to another module
+  useEffect(() => {
+    return () => {
+      // This runs on unmount (when navigating away)
+      try {
+        const currentPath = window.location.pathname;
+        if (!currentPath.startsWith("/tasks")) {
+          sessionStorage.removeItem(STORAGE_KEY);
+        }
+      } catch {}
+    };
+  }, []);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
@@ -101,6 +121,8 @@ function TasksPageInner() {
   }
 
   useEffect(() => {
+    // Restore filters from sessionStorage on mount
+    // URL param (person_id from dashboard) takes priority over saved filters
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       const filters = saved ? JSON.parse(saved) : {};
@@ -137,6 +159,7 @@ function TasksPageInner() {
         setTasks(loadedTasks);
         setTimeframes(loadedTimeframes);
 
+        // Only set default timeframe if none saved
         try {
           const saved = sessionStorage.getItem(STORAGE_KEY);
           const filters = saved ? JSON.parse(saved) : {};
@@ -161,10 +184,9 @@ function TasksPageInner() {
   }, []);
 
   const selectedTimeframe = useMemo(
-    () =>
-      selectedTimeframeId === "ALL"
-        ? null
-        : timeframes.find((tf) => tf.timeframe_id === selectedTimeframeId) || null,
+    () => selectedTimeframeId === "ALL"
+      ? null
+      : timeframes.find((tf) => tf.timeframe_id === selectedTimeframeId) || null,
     [timeframes, selectedTimeframeId],
   );
 
@@ -224,29 +246,52 @@ function TasksPageInner() {
   };
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      let matchesTimeframe = true;
-
-      if (selectedTimeframe) {
-        const inCurrentWindow =
-          task.date >= selectedTimeframe.start_date &&
-          task.date <= selectedTimeframe.end_date;
-
-        // Carry forward: show "In Progress" tasks from before this timeframe
-        const isCarriedForward =
-          task.status === "In Progress" &&
-          task.date < selectedTimeframe.start_date;
-
-        matchesTimeframe = inCurrentWindow || isCarriedForward;
-      }
-
+    // Tasks within the selected timeframe
+    const timeframeTasks = tasks.filter((task) => {
+      const matchesTimeframe = selectedTimeframe
+        ? task.date >= selectedTimeframe.start_date && task.date <= selectedTimeframe.end_date
+        : true;
       const matchesPerson = selectedPersonId === "ALL" || task.person_id === selectedPersonId;
       const matchesProject = selectedProjectId === "ALL" || task.project_id === selectedProjectId;
       const matchesObjective = selectedObjectiveId === "ALL" || task.objective_id === selectedObjectiveId;
       const matchesStatus = selectedStatus === "ALL" || task.status === selectedStatus;
-
       return matchesTimeframe && matchesPerson && matchesProject && matchesObjective && matchesStatus;
     });
+
+    // Carry forward "In Progress" tasks from before the selected timeframe
+    // Only when a specific timeframe is selected and status filter allows it
+    if (selectedTimeframe && ((selectedStatus === "ALL" || selectedStatus === "In Progress" || selectedStatus === "Blocked"))) {
+      const timeframeTaskIds = new Set(timeframeTasks.map(t => t.task_id));
+     const carryForward = tasks.filter(task =>
+  task.date < selectedTimeframe.start_date &&
+  (
+    task.status === "In Progress" ||
+    task.status === "Blocked" ||
+    (
+      task.status === "Done" &&
+      (task.effort_hours_log || []).some(
+        (log: any) =>
+          log.timeframe_id === selectedTimeframe.timeframe_id
+      )
+    )
+  ) &&
+  !timeframeTaskIds.has(task.task_id) &&
+  (selectedPersonId === "ALL" || task.person_id === selectedPersonId) &&
+  (selectedProjectId === "ALL" || task.project_id === selectedProjectId) &&
+  (selectedObjectiveId === "ALL" || task.objective_id === selectedObjectiveId) &&
+  (
+    selectedStatus === "ALL" ||
+    task.status === selectedStatus
+  )
+);
+      return [...timeframeTasks, ...carryForward].sort((a, b) => {
+  const aRecent = a.updated_at || a.date;
+  const bRecent = b.updated_at || b.date;
+  return bRecent.localeCompare(aRecent);
+});
+    }
+
+    return timeframeTasks;
   }, [tasks, selectedTimeframe, selectedPersonId, selectedProjectId, selectedObjectiveId, selectedStatus]);
 
   return (
@@ -358,7 +403,7 @@ function TasksPageInner() {
             </div>
           ) : (
             <table className="w-full text-left">
-              <thead className="border-b border-slate-200 bg-slate-50">
+              <thead className="sticky top-0 z-50 border-b border-slate-200 bg-slate-50">
                 <tr className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
                   <th className="px-5 py-3">Date</th>
                   <th className="px-5 py-3">Person</th>

@@ -26,6 +26,42 @@ async function findBlockerRowNumber(blockerId: string): Promise<number | null> {
   return null;
 }
 
+async function syncTaskStatusFromBlocker(
+  taskId: string,
+  blockerStatus: string
+): Promise<void> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: "Tasks!A1:S5000",
+  });
+
+  const rows = response.data.values || [];
+
+  const rowIndex = rows.findIndex(
+    (row, index) => index > 0 && (row[0] || "").trim() === taskId.trim()
+  );
+
+  if (rowIndex === -1) return;
+
+  const sheetRowNumber = rowIndex + 1;
+
+  // Blocker Open/In Progress → task becomes Blocked + blocker_flag true
+  // Blocker Resolved → task goes back to In Progress + blocker_flag false
+  const newTaskStatus = blockerStatus === "Resolved" ? "In Progress" : "Blocked";
+  const newBlockerFlag = blockerStatus === "Resolved" ? "false" : "true";
+
+  // Only update col K (status, index 10) and col M (blocker_flag, index 12)
+  // Col K = column 11, Col M = column 13
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Tasks!K${sheetRowNumber}:M${sheetRowNumber}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [[newTaskStatus, rows[rowIndex][11] || "", newBlockerFlag]],
+    },
+  });
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -150,6 +186,11 @@ export async function PATCH(
         ]],
       },
     });
+
+    // Sync task status based on blocker status change
+    if (blocker.task_id) {
+      await syncTaskStatusFromBlocker(blocker.task_id, blocker_status);
+    }
 
     return NextResponse.json({
       success: true,
