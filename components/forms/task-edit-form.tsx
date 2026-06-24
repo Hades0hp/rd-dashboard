@@ -327,6 +327,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
           : undefined;
     console.log("SPRINT HOURS:", form.sprint_hours);
     console.log("TIMEFRAME HOURS:", timeframeHours);
+    console.log("TASK DATA", taskData);
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -516,16 +517,20 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
                 </div>
 
                 <div>
-                  <label className={labelClassName}>Effort Hours</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    value={form.effort_hours}
-                    onChange={(e) => updateField("effort_hours", e.target.value)}
-                    className={baseFieldClassName}
-                  />
-                </div>
+  <label className={labelClassName}>Total Effort Hours</label>
+
+  <input
+    type="number"
+    value={form.effort_hours}
+    disabled
+    readOnly
+    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-100 px-3.5 text-sm text-slate-500 cursor-not-allowed"
+  />
+
+  <p className="mt-1 text-xs text-slate-400">
+    Automatically calculated from logged sprint hours.
+  </p>
+</div>
               </div>
 
              {/* Sprint hours — shown only when status is In Progress and active timeframe exists */}

@@ -47,13 +47,23 @@ export async function buildDashboardData(input: DashboardInput) {
     end: t.end_date
   }));
 
-  function inRange(date: string) {
-    const d = date.slice(0, 10);
-    return ranges.some(r => d >= r.start && d <= r.end);
-  }
+  function inRangeTask(task: typeof allTasks[number]) {
+  const effectiveDate =
+    task.status === "Done"
+      ? (task.updated_at || task.date)
+      : task.date;
+
+  const d = effectiveDate.slice(0, 10);
+
+  return ranges.some(
+    r => d >= r.start && d <= r.end
+  );
+}
 
   // Tasks within the selected timeframe(s)
-  const timeframeTasks = allTasks.filter(t => inRange(t.date));
+ const timeframeTasks = allTasks.filter(t =>
+  inRangeTask(t)
+);
 
   // Also include "In Progress" tasks from BEFORE the selected timeframe(s)
   // so that unfinished work from previous sprints carries forward
@@ -102,25 +112,25 @@ export async function buildDashboardData(input: DashboardInput) {
     }
   }
 
+console.log(
+  "Projects with timeframe entry:",
+  [...projectsWithTimeframeEntry]
+);
   const resolvedPlannedPct = new Map<string, number>();
   for (const [pid, pcts] of plannedPctAccum.entries()) {
   const total = pcts.reduce((s, v) => s + v, 0);
   resolvedPlannedPct.set(pid, Number(total.toFixed(1)));
   }
 
- function getPlannedPct(projectId: string): number | null {
+function getPlannedPct(projectId: string): number | null {
   if (!projectsWithTimeframeEntry.has(projectId)) {
-    return null;
+    return null; // project not configured at all
   }
 
   const value = resolvedPlannedPct.get(projectId);
 
-  if (value === undefined || value <= 0) {
-    return null;
-  }
-
-  return value;
- }
+  return value ?? 0; // configured but zero
+}
 
 function getEffectiveHours(task: typeof tasks[number]): number {
   const logs = task.effort_hours_log || [];
@@ -224,9 +234,8 @@ function getEffectiveHours(task: typeof tasks[number]): number {
       : null;
       // Show planned as null if 0 and not explicitly set in timeframe
       const plannedDisplay = p.planned_effort_pct;
-      const gap = actual !== null && plannedDisplay !== null
-        ? Number((plannedDisplay - actual).toFixed(1))
-        : null;
+      const gap = actual !== null  ? Number(((plannedDisplay ?? 0) - actual).toFixed(1))
+    : null;
       return { ...p, planned_effort_pct: plannedDisplay, actual_effort_pct: actual, gap };
     })
     .sort((a, b) => (b.planned_effort_pct ?? -1) - (a.planned_effort_pct ?? -1));

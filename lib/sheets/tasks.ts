@@ -221,28 +221,58 @@ if (
   input.timeframe_hours &&
   Number(input.timeframe_hours.hours) > 0
 ) {
+console.log("TASK DATE:", currentRow[1]);
 
+console.log(
+  "CURRENT TIMEFRAME:",
+  input.timeframe_hours?.timeframe_id
+);
   // Legacy task with no sprint history yet
   if (
-    hoursLog.length === 0 &&
-    existingTotalHours > 0
-  ) {
-    hoursLog.push({
-      timeframe_id: "Previous hours",
-      hours: existingTotalHours,
-      logged_at: currentRow[15] || now,
-    });
-  }
+  hoursLog.length === 0 &&
+  existingTotalHours > 0
+) {
+  hoursLog.push({
+    timeframe_id:
+      input.timeframe_hours?.timeframe_id ||
+      "Previous hours",
+    hours: existingTotalHours,
+    logged_at: currentRow[15] || now,
+  });
+}
 
   const { timeframe_id, hours } = input.timeframe_hours;
 
+const existingEntry = hoursLog.find(
+  (entry) => entry.timeframe_id === timeframe_id
+);
+
+if (existingEntry) {
+  existingEntry.hours =
+    Number(existingEntry.hours || 0) +
+    Number(hours || 0);
+
+  existingEntry.logged_at = now;
+} else {
   hoursLog.push({
     timeframe_id,
     hours: Number(hours || 0),
     logged_at: now,
   });
-}
+}}
+console.log(
+  "HOURS LOG AFTER UPDATE",
+  JSON.stringify(hoursLog, null, 2)
+);
+console.log(
+  "HOURS LOG BEFORE SAVE",
+  JSON.stringify(hoursLog, null, 2)
+);
 
+console.log(
+  "TIMEFRAME HOURS RECEIVED",
+  input.timeframe_hours
+);
 const totalEffortHours =
   hoursLog.length > 0
     ? hoursLog.reduce(
@@ -250,7 +280,7 @@ const totalEffortHours =
         0
       )
     : existingTotalHours;
-  
+ 
   const updated: Task = {
     task_id: taskId,
     date: input.date,

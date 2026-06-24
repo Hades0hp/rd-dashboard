@@ -247,16 +247,42 @@ function TasksPageInner() {
 
   const filteredTasks = useMemo(() => {
     // Tasks within the selected timeframe
-    const timeframeTasks = tasks.filter((task) => {
-      const matchesTimeframe = selectedTimeframe
-        ? task.date >= selectedTimeframe.start_date && task.date <= selectedTimeframe.end_date
-        : true;
-      const matchesPerson = selectedPersonId === "ALL" || task.person_id === selectedPersonId;
-      const matchesProject = selectedProjectId === "ALL" || task.project_id === selectedProjectId;
-      const matchesObjective = selectedObjectiveId === "ALL" || task.objective_id === selectedObjectiveId;
-      const matchesStatus = selectedStatus === "ALL" || task.status === selectedStatus;
-      return matchesTimeframe && matchesPerson && matchesProject && matchesObjective && matchesStatus;
-    });
+   const timeframeTasks = tasks.filter((task) => {
+
+  const effectiveDate =
+    task.status === "Done"
+      ? (task.updated_at || task.date).slice(0, 10)
+      : task.date;
+
+  const matchesTimeframe = selectedTimeframe
+    ? effectiveDate >= selectedTimeframe.start_date &&
+      effectiveDate <= selectedTimeframe.end_date
+    : true;
+
+  const matchesPerson =
+    selectedPersonId === "ALL" ||
+    task.person_id === selectedPersonId;
+
+  const matchesProject =
+    selectedProjectId === "ALL" ||
+    task.project_id === selectedProjectId;
+
+  const matchesObjective =
+    selectedObjectiveId === "ALL" ||
+    task.objective_id === selectedObjectiveId;
+
+  const matchesStatus =
+    selectedStatus === "ALL" ||
+    task.status === selectedStatus;
+
+  return (
+    matchesTimeframe &&
+    matchesPerson &&
+    matchesProject &&
+    matchesObjective &&
+    matchesStatus
+  );
+});
 
     // Carry forward "In Progress" tasks from before the selected timeframe
     // Only when a specific timeframe is selected and status filter allows it
