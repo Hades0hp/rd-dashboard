@@ -111,6 +111,7 @@ export async function PUT(request: NextRequest, { params }: Props) {
           task_description: updated.description,
           person_id: updated.person_id,
           person_name: updated.person_name,
+          raised_by: updated.person_name,
           project_id: updated.project_id,
           project_name: updated.project_name,
           objective_id: updated.objective_id,
