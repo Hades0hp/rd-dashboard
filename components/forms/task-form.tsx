@@ -22,6 +22,13 @@ type Objective = {
   objective_name?: string;
 };
 
+type Timeframe = {
+  timeframe_id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+};
+
 type FormState = {
   date: string;
   person_id: string;
@@ -62,6 +69,7 @@ const initialForm: FormState = {
   blocker_status: "Open",
   resolution_notes: "",
   insight: "",
+  
 };
 
 export default function TaskForm() {
@@ -71,20 +79,42 @@ export default function TaskForm() {
   const [people, setPeople] = useState<Person[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [objectives, setObjectives] = useState<Objective[]>([]);
+   const [activeTimeframe, setActiveTimeframe] =
+  useState<Timeframe | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function loadMasterData() {
       try {
-        const [peopleRes, projectsRes, objectivesRes] = await Promise.all([
-          fetch("/api/people", { cache: "no-store" }),
-          fetch("/api/projects", { cache: "no-store" }),
-          fetch("/api/objectives", { cache: "no-store" }),
-        ]);
-
+       const [
+  peopleRes,
+  projectsRes,
+  objectivesRes,
+  timeframesRes,
+] = await Promise.all([
+  fetch("/api/people", { cache: "no-store" }),
+  fetch("/api/projects", { cache: "no-store" }),
+  fetch("/api/objectives", { cache: "no-store" }),
+  fetch("/api/timeframes", { cache: "no-store" }),
+]);
         const peopleJson = await peopleRes.json();
         const projectsJson = await projectsRes.json();
         const objectivesJson = await objectivesRes.json();
+
+        const timeframesJson = await timeframesRes.json();
+
+const allTimeframes = timeframesJson.data || [];
+
+const today = new Date().toISOString().slice(0, 10);
+
+const active =
+  allTimeframes.find(
+    (t: Timeframe) =>
+      t.start_date <= today &&
+      t.end_date >= today
+  ) || null;
+
+setActiveTimeframe(active);
 
         setPeople(peopleJson?.data || []);
         setProjects(projectsJson?.data || []);
@@ -171,7 +201,10 @@ export default function TaskForm() {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+  ...form,
+  timeframe_id: activeTimeframe?.timeframe_id || "",
+}),
       });
 
       const json = await res.json();

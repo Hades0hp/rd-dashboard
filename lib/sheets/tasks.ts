@@ -110,6 +110,7 @@ export async function getFilteredTasks(
 
 type CreateTaskInput = {
   date?: string;
+
   person_id: string;
   person_name: string;
   project_id: string;
@@ -120,13 +121,28 @@ type CreateTaskInput = {
   task_type?: Task["task_type"];
   status?: Task["status"];
   effort_hours?: number;
+  timeframe_id?: string;
   blocker_flag?: boolean;
   blocker_description?: string;
   insight?: string;
 };
 
-export async function createTask(input: CreateTaskInput): Promise<Task> {
+export async function createTask(
+  input: CreateTaskInput,
+): Promise<Task> {
+
   const now = getNowISOString();
+
+  const hoursLog: HoursLogEntry[] =
+    input.timeframe_id
+      ? [
+          {
+            timeframe_id: input.timeframe_id,
+            hours: Number(input.effort_hours || 0),
+            logged_at: now,
+          },
+        ]
+      : [];
 
   const task: Task = {
     task_id: createId("TSK"),
@@ -140,13 +156,13 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     description: input.description,
     task_type: input.task_type || "Analysis",
     status: input.status || "Done",
-    effort_hours: input.effort_hours ?? 0,
+    effort_hours: Number(input.effort_hours || 0),
     blocker_flag: input.blocker_flag ?? false,
     blocker_description: input.blocker_description || "",
     insight: input.insight || "",
     created_at: now,
     updated_at: now,
-    effort_hours_log: [],
+    effort_hours_log: hoursLog,
   };
 
   await sheets.spreadsheets.values.append({
@@ -155,13 +171,25 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [[
-        task.task_id, task.date, task.person_id, task.person_name,
-        task.project_id, task.project_name, task.objective_id, task.objective_name,
-        task.description, task.task_type, task.status, task.effort_hours,
-        String(task.blocker_flag), task.blocker_description, task.insight,
-        task.created_at, task.updated_at,
-        "", // col R = blocker_ids — leave blank
-        JSON.stringify(task.effort_hours_log), // col S
+        task.task_id,
+        task.date,
+        task.person_id,
+        task.person_name,
+        task.project_id,
+        task.project_name,
+        task.objective_id,
+        task.objective_name,
+        task.description,
+        task.task_type,
+        task.status,
+        task.effort_hours,
+        String(task.blocker_flag),
+        task.blocker_description,
+        task.insight,
+        task.created_at,
+        task.updated_at,
+        "",
+        JSON.stringify(task.effort_hours_log),
       ]],
     },
   });
@@ -214,65 +242,40 @@ export async function updateTask(
   const now = getNowISOString();
 
   // Update hours log if timeframe_hours provided
+// Read existing sprint history
 let hoursLog = parseHoursLog(currentRow[18] || "");
 const existingTotalHours = Number(currentRow[11] || 0);
 
+// Add hours only to the selected timeframe
 if (
   input.timeframe_hours &&
   Number(input.timeframe_hours.hours) > 0
 ) {
-console.log("TASK DATE:", currentRow[1]);
-
-console.log(
-  "CURRENT TIMEFRAME:",
-  input.timeframe_hours?.timeframe_id
-);
-  // Legacy task with no sprint history yet
-  if (
-  hoursLog.length === 0 &&
-  existingTotalHours > 0
-) {
-  hoursLog.push({
-    timeframe_id:
-      input.timeframe_hours?.timeframe_id ||
-      "Previous hours",
-    hours: existingTotalHours,
-    logged_at: currentRow[15] || now,
-  });
-}
-
   const { timeframe_id, hours } = input.timeframe_hours;
 
-const existingEntry = hoursLog.find(
-  (entry) => entry.timeframe_id === timeframe_id
-);
+  const existingEntry = hoursLog.find(
+    (entry) => entry.timeframe_id === timeframe_id
+  );
 
-if (existingEntry) {
-  existingEntry.hours =
-    Number(existingEntry.hours || 0) +
-    Number(hours || 0);
+  if (existingEntry) {
+    // Same timeframe -> add hours
+    existingEntry.hours += Number(hours);
+    existingEntry.logged_at = now;
+  } else {
+    // First log for this timeframe
+    hoursLog.push({
+      timeframe_id,
+      hours: Number(hours),
+      logged_at: now,
+    });
+  }
+}
 
-  existingEntry.logged_at = now;
-} else {
-  hoursLog.push({
-    timeframe_id,
-    hours: Number(hours || 0),
-    logged_at: now,
-  });
-}}
 console.log(
   "HOURS LOG AFTER UPDATE",
   JSON.stringify(hoursLog, null, 2)
 );
-console.log(
-  "HOURS LOG BEFORE SAVE",
-  JSON.stringify(hoursLog, null, 2)
-);
 
-console.log(
-  "TIMEFRAME HOURS RECEIVED",
-  input.timeframe_hours
-);
 const totalEffortHours =
   hoursLog.length > 0
     ? hoursLog.reduce(

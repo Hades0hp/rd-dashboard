@@ -96,34 +96,61 @@ export default function BlockersPage() {
     () => timeframes.find((tf) => tf.timeframe_id === selectedTimeframeId) || null,
     [timeframes, selectedTimeframeId]
   );
+const filteredBlockers = useMemo(() => {
+  return blockers
+    .filter((blocker) => {
+      const matchesStatus =
+        statusFilter === "All" ||
+        blocker.blocker_status === statusFilter;
 
-  const filteredBlockers = useMemo(() => {
-    return blockers.filter((blocker) => {
-      const matchesStatus = statusFilter === "All" || blocker.blocker_status === statusFilter;
+      if (selectedTimeframeId === "all") {
+        return matchesStatus;
+      }
 
-      // "All Timeframes" — skip date filtering entirely
-      if (selectedTimeframeId === "all") return matchesStatus;
+      const blockerDate = blocker.created_at
+        ? blocker.created_at.slice(0, 10)
+        : "";
 
-      // Filter ALL blockers (any status) by their created_at date against the selected timeframe
-      const blockerDate = blocker.created_at ? blocker.created_at.slice(0, 10) : "";
       const matchesTimeframe = selectedTimeframe
-        ? blockerDate >= selectedTimeframe.start_date && blockerDate <= selectedTimeframe.end_date
+        ? blockerDate >= selectedTimeframe.start_date &&
+          blockerDate <= selectedTimeframe.end_date
         : true;
 
       return matchesTimeframe && matchesStatus;
-    });
-  }, [blockers, selectedTimeframe, selectedTimeframeId, statusFilter]);
+    })
+    .sort((a: Blocker, b: Blocker) =>
+      new Date(b.created_at).getTime() -
+      new Date(a.created_at).getTime()
+    );
+}, [
+  blockers,
+  selectedTimeframe,
+  selectedTimeframeId,
+  statusFilter,
+]);
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <div className="mx-auto max-w-[1500px] px-8 py-8">
 
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-950">Blockers</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            View and manage blockers impacting task progress across the selected sprint/timeframe.
-          </p>
-        </div>
+        <div className="mb-6 flex items-start justify-between">
+  <div>
+    <h1 className="text-4xl font-bold tracking-tight text-slate-950">
+      Blockers
+    </h1>
+
+    <p className="mt-2 text-sm text-slate-500">
+      View and manage blockers impacting task progress across the selected sprint/timeframe.
+    </p>
+  </div>
+
+  <Link
+    href="/blockers/new"
+    className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white hover:bg-slate-800"
+  >
+     New Blocker
+  </Link>
+</div>
 
         <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -169,7 +196,7 @@ export default function BlockersPage() {
             <table className="w-full text-left">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
-                  <th className="px-5 py-3">Task</th>
+                  <th className="px-5 py-3">Reference ID</th>
                   <th className="px-5 py-3">Blocker Title</th>
                   <th className="px-5 py-3">Project</th>
                   <th className="px-5 py-3">Assigned To</th>
@@ -180,9 +207,9 @@ export default function BlockersPage() {
               <tbody>
                 {filteredBlockers.map((b) => (
                   <tr key={b.blocker_id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60">
-                    <td className="px-5 py-4 text-sm text-slate-900">{b.task_id || "-"}</td>
+                    <td className="px-5 py-4 text-sm text-slate-900">{b.task_id || b.project_id || "-"}</td>
                     <td className="px-5 py-4 text-sm text-slate-900">{b.blocker_title || "-"}</td>
-                    <td className="px-5 py-4 text-sm text-slate-900">{b.project_name || "-"}</td>
+                   <td className="px-5 py-4 text-sm text-slate-900"> {b.project_name || "-"}</td>
                     <td className="px-5 py-4 text-sm text-slate-900">{b.assigned_to_resolve || "-"}</td>
                     <td className="px-5 py-4">{getStatusBadge(b.blocker_status)}</td>
                     <td className="px-5 py-4">

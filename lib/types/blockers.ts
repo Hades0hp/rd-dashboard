@@ -6,6 +6,7 @@ export type Blocker = {
   task_description: string;
   person_id: string;
   person_name: string;
+  raised_by: string;
   project_id: string;
   project_name: string;
   objective_id?: string;

@@ -187,9 +187,15 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
 
   // Show sprint hours field when: task is "In Progress" (current or carried forward)
   const showSprintHours = useMemo(() => {
-    if (!form || !activeTimeframe) return false;
-    return form.status === "In Progress";
-  }, [form, activeTimeframe]);
+  if (!form || !activeTimeframe) return false;
+
+  // Show for every active working status
+  return (
+    form.status === "In Progress" ||
+    form.status === "Blocked" ||
+    form.status === "Done"
+  );
+}, [form, activeTimeframe]);
 
   const sprintHistory = useMemo(() => {
   if (!taskData?.effort_hours_log?.length) {
@@ -572,13 +578,13 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
       </div>
     )}
 
-    <label className="mb-2 block text-sm font-semibold text-amber-900">
-      Add Hours To Current Sprint — {activeTimeframe.name}
-    </label>
-
+   <label className="mb-2 block text-sm font-semibold text-amber-900">
+  Additional Hours Logged — {activeTimeframe.name}
+</label>
     <p className="mb-3 text-xs text-amber-700">
-      Enter only NEW hours worked in this sprint. 
-    </p>
+  Enter only the additional hours worked in this timeframe.
+  Leave 0 if no extra work was done.
+</p>
 
     <input
       type="number"

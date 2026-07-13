@@ -1,28 +1,29 @@
 import { sheets, SPREADSHEET_ID } from "@/lib/sheets/client";
 import type { Blocker } from "@/lib/types/blockers";
 
-const BLOCKERS_RANGE = "Blockers!A2:P5000";
-const BLOCKERS_APPEND_RANGE = "Blockers!A:P";
+const BLOCKERS_RANGE = "Blockers!A2:Q5000";
+const BLOCKERS_APPEND_RANGE = "Blockers!A:Q";
 
 function mapRowToBlocker(row: string[]): Blocker {
   return {
-    blocker_id: row[0] || "",
-    task_id: row[1] || "",
-    task_description: row[2] || "",
-    person_id: row[3] || "",
-    person_name: row[4] || "",
-    project_id: row[5] || "",
-    project_name: row[6] || "",
-    objective_id: row[7] || "",
-    objective_name: row[8] || "",
-    blocker_title: row[9] || "",
-    blocker_description: row[10] || "",
-    assigned_to_resolve: row[11] || "",
-    blocker_status: (row[12] as Blocker["blocker_status"]) || "Open",
-    resolution_notes: row[13] || "",
-    created_at: row[14] || "",
-    resolved_at: row[15] || "",
-  };
+  blocker_id: row[0] || "",
+  task_id: row[1] || "",
+  task_description: row[2] || "",
+  person_id: row[3] || "",
+  person_name: row[4] || "",
+  raised_by: row[5] || "",
+  project_id: row[6] || "",
+  project_name: row[7] || "",
+  objective_id: row[8] || "",
+  objective_name: row[9] || "",
+  blocker_title: row[10] || "",
+  blocker_description: row[11] || "",
+  assigned_to_resolve: row[12] || "",
+  blocker_status: (row[13] as Blocker["blocker_status"]) || "Open",
+  resolution_notes: row[14] || "",
+  created_at: row[15] || "",
+  resolved_at: row[16] || "",
+};
 }
 
 export async function getAllBlockers(): Promise<Blocker[]> {
@@ -55,6 +56,7 @@ export async function createBlocker(blocker: {
   task_description: string;
   person_id: string;
   person_name: string;
+  raised_by: string;
   project_id: string;
   project_name: string;
   objective_id: string;
@@ -73,23 +75,26 @@ export async function createBlocker(blocker: {
     valueInputOption: "RAW",
     requestBody: {
       values: [[
-        blocker.blocker_id,
-        blocker.task_id,
-        blocker.task_description,
-        blocker.person_id,
-        blocker.person_name,
-        blocker.project_id,
-        blocker.project_name,
-        blocker.objective_id,
-        blocker.objective_name,
-        blocker.blocker_title,
-        blocker.blocker_description,
-        blocker.assigned_to_resolve,
-        blocker.blocker_status,
-        blocker.resolution_notes || "",
-        blocker.created_at,
-        blocker.resolved_at || "",
-      ]],
+  blocker.blocker_id,
+  blocker.task_id,
+  blocker.task_description,
+
+  blocker.person_id,
+  blocker.person_name,
+  blocker.raised_by,
+
+  blocker.project_id,
+  blocker.project_name,
+  blocker.objective_id,
+  blocker.objective_name,
+  blocker.blocker_title,
+  blocker.blocker_description,
+  blocker.assigned_to_resolve,
+  blocker.blocker_status,
+  blocker.resolution_notes || "",
+  blocker.created_at,
+  blocker.resolved_at || "",
+]]
     },
   });
 }
@@ -128,7 +133,7 @@ export async function updateBlockerStatus(input: {
   for (let i = 0; i < rows.length; i++) {
     if ((rows[i][0] || "").trim() === input.blocker_id.trim()) {
       rowNumber = i + 2;
-      createdAt = rows[i][14] || "";
+      createdAt = rows[i][15] || "";
       break;
     }
   }
@@ -142,7 +147,7 @@ export async function updateBlockerStatus(input: {
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Blockers!M${rowNumber}:P${rowNumber}`,
+    range: `Blockers!N${rowNumber}:Q${rowNumber}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[
@@ -150,6 +155,57 @@ export async function updateBlockerStatus(input: {
         input.resolution_notes || "",
         createdAt,
         resolvedAt,
+      ]],
+    },
+  });
+}
+export async function createProjectBlocker(blocker: {
+  blocker_id: string;
+  person_id: string;
+  person_name: string;
+  raised_by: string;
+  project_id: string;
+  project_name: string;
+  blocker_title: string;
+  blocker_description: string;
+  assigned_to_resolve: string;
+  blocker_status: string;
+  resolution_notes?: string;
+  created_at: string;
+}) {
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: BLOCKERS_APPEND_RANGE,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [[
+        blocker.blocker_id,
+
+        "", // task_id
+        "", // task_description
+
+        blocker.person_id,
+        blocker.person_name,
+         blocker.raised_by,
+
+        blocker.project_id,
+        blocker.project_name,
+
+        "", // objective_id
+        "", // objective_name
+
+        blocker.blocker_title,
+        blocker.blocker_description,
+
+        blocker.assigned_to_resolve,
+
+        blocker.blocker_status,
+
+        blocker.resolution_notes || "",
+
+        blocker.created_at,
+
+        "",
       ]],
     },
   });

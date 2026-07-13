@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       task_type: body.task_type || "Analysis",
       status: body.status || "Done",
       effort_hours: body.effort_hours ? Number(body.effort_hours) : 0,
+      timeframe_id: body.timeframe_id,
       blocker_flag: Boolean(body.blocker_flag),
       blocker_description: body.blocker_description
         ? String(body.blocker_description).trim()

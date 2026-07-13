@@ -71,7 +71,7 @@ export default function ProjectsPage() {
   const [baseProjects, setBaseProjects] = useState<Project[]>([]);
   const [allTimeframes, setAllTimeframes] = useState<Timeframe[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
-  const [selectedTimeframeId, setSelectedTimeframeId] = useState<string>("ALL");
+ const [selectedTimeframeId, setSelectedTimeframeId] = useState<string>("ALL");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

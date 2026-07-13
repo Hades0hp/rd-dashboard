@@ -114,21 +114,21 @@ export default function PeoplePage() {
                   placeholder="Name *"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="h-11 rounded-xl border px-3"
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-slate-900 placeholder:text-slate-400"
                 />
 
                 <input
                   placeholder="Role"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="h-11 rounded-xl border px-3"
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-slate-900 placeholder:text-slate-400"
                 />
 
                 <input
                   placeholder="Email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 rounded-xl border px-3"
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-slate-900 placeholder:text-slate-400"
                 />
 
                 <select
@@ -136,7 +136,7 @@ export default function PeoplePage() {
                   onChange={(e) =>
                     setStatus(e.target.value as "Active" | "Inactive")
                   }
-                  className="h-11 rounded-xl border px-3"
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-slate-900"
                 >
                   <option>Active</option>
                   <option>Inactive</option>
@@ -153,12 +153,12 @@ export default function PeoplePage() {
                 </button>
 
                 <button
-                  type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="rounded-xl border px-4 py-2"
-                >
-                  Cancel
-                </button>
+  type="button"
+  onClick={() => setShowCreate(false)}
+  className="rounded-xl border border-slate-300 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
+>
+  Cancel
+</button>
               </div>
             </form>
           </div>

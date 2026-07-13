@@ -48,15 +48,21 @@ export async function buildDashboardData(input: DashboardInput) {
   }));
 
   function inRangeTask(task: typeof allTasks[number]) {
-  const effectiveDate =
-    task.status === "Done"
-      ? (task.updated_at || task.date)
-      : task.date;
 
-  const d = effectiveDate.slice(0, 10);
+  // New task created in selected timeframe
+  const createdInSelected = ranges.some(
+    r =>
+      task.date >= r.start &&
+      task.date <= r.end
+  );
 
-  return ranges.some(
-    r => d >= r.start && d <= r.end
+  if (createdInSelected) return true;
+
+  // Existing task updated in selected timeframe
+  const logs = task.effort_hours_log || [];
+
+  return logs.some(log =>
+    selectedTimeframeIds.has(log.timeframe_id)
   );
 }
 
@@ -72,12 +78,24 @@ export async function buildDashboardData(input: DashboardInput) {
     ranges[0]?.start || ""
   );
 
-  const carryForwardTasks = earliestStart
-  ? allTasks.filter(t =>
-      t.date < earliestStart &&
-      ["In Progress", "Blocked"].includes(t.status) &&
-      !timeframeTasks.some(tt => tt.task_id === t.task_id)
-    )
+ const carryForwardTasks = earliestStart
+  ? allTasks.filter(task => {
+
+      const alreadyIncluded = timeframeTasks.some(
+        t => t.task_id === task.task_id
+      );
+
+      if (alreadyIncluded) return false;
+
+      return (
+        task.date < earliestStart &&
+        (
+          task.status === "In Progress" ||
+          task.status === "Blocked"
+        )
+      );
+
+    })
   : [];
 
   const tasks = [...timeframeTasks, ...carryForwardTasks];
@@ -234,7 +252,7 @@ function getEffectiveHours(task: typeof tasks[number]): number {
       : null;
       // Show planned as null if 0 and not explicitly set in timeframe
       const plannedDisplay = p.planned_effort_pct;
-      const gap = actual !== null  ? Number(((plannedDisplay ?? 0) - actual).toFixed(1))
+     const gap = actual !== null  ? Number((actual - (plannedDisplay ?? 0)).toFixed(1))
     : null;
       return { ...p, planned_effort_pct: plannedDisplay, actual_effort_pct: actual, gap };
     })
@@ -330,22 +348,37 @@ function getEffectiveHours(task: typeof tasks[number]): number {
 
   /* ---------------- blockers ---------------- */
 
-  const blockersData = activeBlockers.map(b => {
-    const person = people.find(p => p.person_id === b.person_id);
-    const project = projects.find(p => p.project_id === b.project_id);
-    const objective = objectives.find(o => o.objective_id === b.objective_id);
+  const blockersData = activeBlockers.map((b) => {
+    const person = people.find(
+      (p) => p.person_id === b.person_id
+    );
+
+    const project = projects.find(
+      (p) => p.project_id === b.project_id
+    );
+
+    const objective = objectives.find(
+      (o) => o.objective_id === b.objective_id
+    );
+
     return {
       task_id: b.task_id,
       date: b.created_at,
       person_name: person?.name || b.person_name,
       project_name: project?.name || b.project_name,
-      objective_name: objective?.objective_name || b.objective_name,
+      objective_name:
+        objective?.objective_name || b.objective_name,
       blocker_title: b.blocker_title,
       blocker_description: b.blocker_description,
       assigned_to_resolve: b.assigned_to_resolve,
-      blocker_status: b.blocker_status
+      blocker_status: b.blocker_status,
     };
-  });
+  })
+  .sort(
+    (a, b) =>
+      new Date(b.date).getTime() -
+      new Date(a.date).getTime()
+  );
 
   /* ---------------- insights ---------------- */
 
