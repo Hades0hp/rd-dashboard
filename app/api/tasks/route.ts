@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
         task_description: task.description,
         person_id: task.person_id,
         person_name: task.person_name,
+        raised_by: task.person_name,
         project_id: task.project_id,
         project_name: task.project_name,
         objective_id: task.objective_id,
