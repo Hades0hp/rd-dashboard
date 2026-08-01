@@ -1,5 +1,5 @@
 import { sheets, SPREADSHEET_ID } from "@/lib/sheets/client";
-import { Timeframe } from "@/lib/types/timeframe";
+import { Timeframe, PlannedEffortEntry } from "@/lib/types/timeframe";
 import { createId } from "@/lib/utils/ids";
 import {
   calculateEndDate,
@@ -7,8 +7,18 @@ import {
   getTodayDateString,
 } from "@/lib/utils/dates";
 
-const TIMEFRAMES_RANGE = "Timeframes!A1:H1000";
-const TIMEFRAMES_APPEND_RANGE = "Timeframes!A:H";
+const TIMEFRAMES_RANGE = "Timeframes!A1:I1000";
+const TIMEFRAMES_APPEND_RANGE = "Timeframes!A:I";
+
+function parsePlannedEffort(raw: string): PlannedEffortEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function mapRowToTimeframe(row: string[]): Timeframe {
   return {
@@ -20,6 +30,7 @@ function mapRowToTimeframe(row: string[]): Timeframe {
     created_by: row[5] || "",
     created_at: row[6] || "",
     updated_at: row[7] || "",
+    planned_effort: parsePlannedEffort(row[8] || ""),
   };
 }
 
@@ -46,9 +57,7 @@ export async function getAllTimeframes(): Promise<Timeframe[]> {
 
   const rows = response.data.values || [];
 
-  if (rows.length <= 1) {
-    return [];
-  }
+  if (rows.length <= 1) return [];
 
   return sortTimeframesDesc(
     rows
@@ -72,7 +81,6 @@ export async function getActiveTimeframe(): Promise<Timeframe | null> {
   );
 
   if (active) return active;
-
   return timeframes[0] || null;
 }
 
@@ -81,6 +89,7 @@ type CreateTimeframeInput = {
   start_date: string;
   duration_days?: number;
   created_by?: string;
+  planned_effort?: PlannedEffortEntry[];
 };
 
 export async function createTimeframe(
@@ -102,6 +111,8 @@ export async function createTimeframe(
     );
   }
 
+  const plannedEffort = input.planned_effort ?? [];
+
   const timeframe: Timeframe = {
     timeframe_id: createId("TFR"),
     name: input.name || "",
@@ -111,6 +122,7 @@ export async function createTimeframe(
     created_by: input.created_by || "",
     created_at: now,
     updated_at: now,
+    planned_effort: plannedEffort,
   };
 
   await sheets.spreadsheets.values.append({
@@ -128,6 +140,7 @@ export async function createTimeframe(
           timeframe.created_by,
           timeframe.created_at,
           timeframe.updated_at,
+          JSON.stringify(timeframe.planned_effort),
         ],
       ],
     },
@@ -143,6 +156,7 @@ export async function updateTimeframe(
     start_date: string;
     duration_days: number;
     created_by?: string;
+    planned_effort?: PlannedEffortEntry[];
   },
 ): Promise<Timeframe> {
   const response = await sheets.spreadsheets.values.get({
@@ -152,17 +166,13 @@ export async function updateTimeframe(
 
   const rows = response.data.values || [];
 
-  if (rows.length <= 1) {
-    throw new Error("No timeframes found");
-  }
+  if (rows.length <= 1) throw new Error("No timeframes found");
 
   const rowIndex = rows.findIndex(
     (row, index) => index > 0 && row[0] === timeframeId,
   );
 
-  if (rowIndex === -1) {
-    throw new Error("Timeframe not found");
-  }
+  if (rowIndex === -1) throw new Error("Timeframe not found");
 
   const now = getNowISOString();
   const endDate = calculateEndDate(input.start_date, input.duration_days);
@@ -184,6 +194,10 @@ export async function updateTimeframe(
 
   const currentRow = rows[rowIndex];
 
+  // Keep existing planned_effort if not provided in update
+  const plannedEffort =
+    input.planned_effort ?? parsePlannedEffort(currentRow[8] || "");
+
   const updated: Timeframe = {
     timeframe_id: timeframeId,
     name: input.name ?? currentRow[1] ?? "",
@@ -193,13 +207,14 @@ export async function updateTimeframe(
     created_by: input.created_by ?? currentRow[5] ?? "",
     created_at: currentRow[6] || now,
     updated_at: now,
+    planned_effort: plannedEffort,
   };
 
   const sheetRowNumber = rowIndex + 1;
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Timeframes!A${sheetRowNumber}:H${sheetRowNumber}`,
+    range: `Timeframes!A${sheetRowNumber}:I${sheetRowNumber}`,
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [
@@ -212,6 +227,7 @@ export async function updateTimeframe(
           updated.created_by,
           updated.created_at,
           updated.updated_at,
+          JSON.stringify(updated.planned_effort),
         ],
       ],
     },

@@ -1,36 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildDashboardData } from "@/lib/dashboard/aggregate";
-import { getActiveTimeframe } from "@/lib/sheets/timeframes";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const timeframeIdsParam = searchParams.get("timeframe_ids") || "";
 
-    let start_date = searchParams.get("start_date") || "";
-    let end_date = searchParams.get("end_date") || "";
+    const timeframe_ids = timeframeIdsParam
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
 
-    if (!start_date || !end_date) {
-      const activeTimeframe = await getActiveTimeframe();
-
-      if (!activeTimeframe) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "No active or latest timeframe found",
-          },
-          { status: 400 },
-        );
-      }
-
-      start_date = activeTimeframe.start_date;
-      end_date = activeTimeframe.end_date;
+    if (timeframe_ids.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "At least one timeframe_id is required",
+        },
+        { status: 400 },
+      );
     }
 
     const dashboard = await buildDashboardData({
-      start_date,
-      end_date,
+      timeframe_ids,
     });
 
     return NextResponse.json({

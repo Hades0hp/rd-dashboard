@@ -9,9 +9,6 @@ export default function NewProjectPage() {
 
   const [name, setName] = useState("");
   const [objective, setObjective] = useState("");
-  const [priority, setPriority] = useState<"High" | "Medium" | "Low">("Medium");
-  const [plannedEffort, setPlannedEffort] = useState("0");
-  const [progress, setProgress] = useState("0");
   const [status, setStatus] = useState<"Active" | "Paused" | "Archived">(
     "Active",
   );
@@ -51,13 +48,10 @@ export default function NewProjectPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name,
-          objective,
-          priority,
-          planned_effort_pct: Number(plannedEffort) || 0,
-          progress_pct: Number(progress) || 0,
-          status,
-        }),
+  name,
+  objective,
+  status,
+}),
       });
 
       const json = await res.json();
@@ -131,23 +125,6 @@ export default function NewProjectPage() {
                 />
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Priority
-                </label>
-                <select
-                  value={priority}
-                  onChange={(e) =>
-                    setPriority(e.target.value as "High" | "Medium" | "Low")
-                  }
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
-                >
-                  <option>High</option>
-                  <option>Medium</option>
-                  <option>Low</option>
-                </select>
-              </div>
-
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Project Goal / Summary
@@ -160,33 +137,6 @@ export default function NewProjectPage() {
                 />
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Planned Effort %
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={plannedEffort}
-                  onChange={(e) => setPlannedEffort(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Progress %
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={progress}
-                  onChange={(e) => setProgress(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
-                />
-              </div>
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">

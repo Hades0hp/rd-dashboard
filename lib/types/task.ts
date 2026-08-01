@@ -26,4 +26,9 @@ export type Task = {
   insight?: string;
   created_at: string;
   updated_at: string;
+  effort_hours_log?: {
+  timeframe_id: string;
+  hours: number;
+  logged_at?: string;
+}[];
 };

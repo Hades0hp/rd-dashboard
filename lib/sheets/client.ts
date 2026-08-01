@@ -4,6 +4,8 @@ const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
 const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
 
+console.log("SPREADSHEET FROM ENV =", spreadsheetId);
+console.log("Client Email:", clientEmail);
 if (!clientEmail) {
   throw new Error("Missing GOOGLE_CLIENT_EMAIL");
 }
@@ -33,3 +35,15 @@ export const sheets = google.sheets({
 });
 
 export const SPREADSHEET_ID = spreadsheetId;
+
+console.log("Spreadsheet ID:", spreadsheetId);
+
+const test = await sheets.spreadsheets.get({
+  spreadsheetId,
+});
+
+console.log("Sheet Title:", test.data.properties?.title);
+console.log(
+  "Tabs:",
+  test.data.sheets?.map((s) => s.properties?.title)
+);

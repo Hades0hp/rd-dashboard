@@ -19,6 +19,19 @@ type Person = {
   name: string;
 };
 
+type Timeframe = {
+  timeframe_id: string;
+  name?: string;
+  start_date: string;
+  end_date: string;
+};
+
+type HoursLogEntry = {
+  timeframe_id: string;
+  hours: number;
+  logged_at?: string;
+};
+
 type Task = {
   task_id: string;
   date: string;
@@ -33,8 +46,13 @@ type Task = {
   status: string;
   effort_hours?: number;
   blocker_flag: boolean;
+  blocker_title?: string;
   blocker_description?: string;
+  assigned_to_resolve?: string;
+  blocker_status?: string;
+  resolution_notes?: string;
   insight?: string;
+  effort_hours_log?: HoursLogEntry[];
 };
 
 type FormState = {
@@ -49,8 +67,13 @@ type FormState = {
   task_type: string;
   status: string;
   effort_hours: string;
+  sprint_hours: string;
   blocker_flag: boolean;
+  blocker_title: string;
   blocker_description: string;
+  assigned_to_resolve: string;
+  blocker_status: string;
+  resolution_notes: string;
   insight: string;
 };
 
@@ -68,29 +91,32 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [activeTimeframe, setActiveTimeframe] = useState<Timeframe | null>(null);
+  const [allTimeframes, setAllTimeframes] = useState<Timeframe[]>([]);
+  const [taskData, setTaskData] = useState<Task | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">(
-    "success",
-  );
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [taskRes, projectsRes, objectivesRes, peopleRes] =
+        const [taskRes, projectsRes, objectivesRes, peopleRes, timeframesRes] =
           await Promise.all([
             fetch(`/api/tasks/${taskId}`),
             fetch("/api/projects"),
             fetch("/api/objectives"),
             fetch("/api/people"),
+            fetch("/api/timeframes"),
           ]);
 
         const taskJson = await taskRes.json();
         const projectsJson = await projectsRes.json();
         const objectivesJson = await objectivesRes.json();
         const peopleJson = await peopleRes.json();
+        const timeframesJson = await timeframesRes.json();
 
         if (!taskJson.success || !taskJson.data) {
           setMessageType("error");
@@ -100,10 +126,26 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
         }
 
         const task: Task = taskJson.data;
+        setTaskData(task);
+
+        // Find active timeframe
+        const today = new Date().toISOString().slice(0, 10);
+        const timeframes: Timeframe[] = timeframesJson.data || [];
+        setAllTimeframes(timeframes);
+        const active = timeframes.find(
+          (t) => t.start_date <= today && t.end_date >= today
+        ) || timeframes[0] || null;
+        setActiveTimeframe(active);
+
+        // Get already-logged hours for active timeframe
+        const existingSprintHours = active
+          ? (task.effort_hours_log?.find((e) => e.timeframe_id === active.timeframe_id)?.hours ?? 0)
+          : 0;
 
         setProjects(projectsJson.data || []);
         setObjectives(objectivesJson.data || []);
         setPeople(peopleJson.data || []);
+
         setForm({
           date: task.date,
           person_id: task.person_id,
@@ -116,8 +158,13 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
           task_type: task.task_type || "Analysis",
           status: task.status || "Done",
           effort_hours: String(task.effort_hours ?? 0),
+          sprint_hours: "",
           blocker_flag: task.blocker_flag,
+          blocker_title: task.blocker_title || "",
           blocker_description: task.blocker_description || "",
+          assigned_to_resolve: task.assigned_to_resolve || "",
+          blocker_status: task.blocker_status || "Open",
+          resolution_notes: task.resolution_notes || "",
           insight: task.insight || "",
         });
       } catch (error) {
@@ -132,6 +179,45 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
     loadData();
   }, [taskId]);
 
+  // Is this task carried forward? (date before active timeframe start)
+  const isCarriedForward = useMemo(() => {
+    if (!taskData || !activeTimeframe) return false;
+    return taskData.date < activeTimeframe.start_date;
+  }, [taskData, activeTimeframe]);
+
+  // Show sprint hours field when: task is "In Progress" (current or carried forward)
+  const showSprintHours = useMemo(() => {
+  if (!form || !activeTimeframe) return false;
+
+  // Show for every active working status
+  return (
+    form.status === "In Progress" ||
+    form.status === "Blocked" ||
+    form.status === "Done"
+  );
+}, [form, activeTimeframe]);
+
+  const sprintHistory = useMemo(() => {
+  if (!taskData?.effort_hours_log?.length) {
+    return [];
+  }
+
+  return taskData.effort_hours_log.map(log => {
+    const timeframe = allTimeframes.find(
+      tf => tf.timeframe_id === log.timeframe_id
+    );
+
+    return {
+  timeframeName:
+    timeframe?.name ||
+    log.timeframe_id,
+  hours: log.hours,
+  timeframeId: log.timeframe_id,
+  loggedAt: log.logged_at,
+ };
+  });
+}, [taskData, allTimeframes]);
+
   const filteredObjectives = useMemo(() => {
     if (!form?.project_id) return [];
     return objectives.filter(
@@ -140,19 +226,11 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
   }, [objectives, form?.project_id]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) =>
-      prev
-        ? {
-            ...prev,
-            [key]: value,
-          }
-        : prev,
-    );
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
   function handleProjectChange(projectId: string) {
     const selectedProject = projects.find((p) => p.project_id === projectId);
-
     setForm((prev) =>
       prev
         ? {
@@ -170,7 +248,6 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
     const selectedObjective = objectives.find(
       (o) => o.objective_id === objectiveId,
     );
-
     setForm((prev) =>
       prev
         ? {
@@ -184,7 +261,6 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
 
   function handlePersonChange(personId: string) {
     const selectedPerson = people.find((p) => p.person_id === personId);
-
     setForm((prev) =>
       prev
         ? {
@@ -213,23 +289,59 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
       return;
     }
 
-    if (form.blocker_flag && !form.blocker_description.trim()) {
-      setMessageType("error");
-      setMessage("Please add blocker description.");
-      return;
+    if (form.blocker_flag) {
+      if (!form.blocker_title.trim()) {
+        setMessageType("error");
+        setMessage("Blocker Title is required.");
+        return;
+      }
+      if (!form.blocker_description.trim()) {
+        setMessageType("error");
+        setMessage("Blocker Description is required.");
+        return;
+      }
+      if (!form.assigned_to_resolve.trim()) {
+        setMessageType("error");
+        setMessage("Assigned To Resolve is required.");
+        return;
+      }
+      if (form.blocker_status === "Resolved" && !form.resolution_notes.trim()) {
+        setMessageType("error");
+        setMessage("Resolution Notes are required when status is Resolved.");
+        return;
+      }
     }
 
     setSaving(true);
 
     try {
+      // Sync task status from blocker status automatically
+      let derivedStatus = form.status;
+      if (form.blocker_flag) {
+        if (form.blocker_status === "Resolved") {
+          derivedStatus = "In Progress";
+        } else {
+          // Open or In Progress blocker → task is Blocked
+          derivedStatus = "Blocked";
+        }
+      }
+
+      // Pass timeframe_hours only when sprint hours field is shown and active timeframe exists
+      const timeframeHours =
+        showSprintHours && activeTimeframe
+          ? { timeframe_id: activeTimeframe.timeframe_id, hours: Number(form.sprint_hours) || 0 }
+          : undefined;
+    console.log("SPRINT HOURS:", form.sprint_hours);
+    console.log("TIMEFRAME HOURS:", timeframeHours);
+    console.log("TASK DATA", taskData);
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          status: derivedStatus,
           effort_hours: form.effort_hours ? Number(form.effort_hours) : 0,
+          timeframe_hours: timeframeHours,
         }),
       });
 
@@ -284,15 +396,21 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
           Update task details, project mapping, insights, blockers, and effort.
         </p>
+        {isCarriedForward && activeTimeframe && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            This task is carried forward into <strong>{activeTimeframe.name}</strong>. Use <strong>Hours this sprint</strong> below to log hours for this sprint.
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="px-8 py-8">
         <div className="space-y-10">
+
+          {/* Basic Details */}
           <section>
             <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
               Basic Details
             </h3>
-
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className={labelClassName}>Date</label>
@@ -357,15 +475,15 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
             </div>
           </section>
 
+          {/* Work Log */}
           <section>
             <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
               Work Log
             </h3>
-
             <div className="space-y-5">
               <div>
                 <label className={labelClassName}>Description *</label>
-                <textarea
+                <textarea spellCheck={true}
                   value={form.description}
                   onChange={(e) => updateField("description", e.target.value)}
                   rows={6}
@@ -405,22 +523,84 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
                 </div>
 
                 <div>
-                  <label className={labelClassName}>Effort Hours</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    value={form.effort_hours}
-                    onChange={(e) =>
-                      updateField("effort_hours", e.target.value)
-                    }
-                    className={baseFieldClassName}
+  <label className={labelClassName}>Total Effort Hours</label>
+
+  <input
+    type="number"
+    value={form.effort_hours}
+    disabled
+    readOnly
+    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-100 px-3.5 text-sm text-slate-500 cursor-not-allowed"
+  />
+
+  <p className="mt-1 text-xs text-slate-400">
+    Automatically calculated from logged sprint hours.
+  </p>
+</div>
+              </div>
+
+             {/* Sprint hours — shown only when status is In Progress and active timeframe exists */}
+             {showSprintHours && activeTimeframe && (
+               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+
+                  {sprintHistory.length > 0 && (
+                  <div className="mb-5">
+                  <p className="mb-3 text-sm font-semibold text-slate-900">
+                   Hours Logged History
+                  </p>
+
+              <div className="space-y-2">
+               {sprintHistory.map((entry, index) => (
+              <div
+              key={index}
+              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+              >
+              <span className="text-sm text-slate-700">
+                {entry.timeframeName}
+              </span>
+
+              <div className="text-right">
+  <div className="text-sm font-semibold text-slate-900">
+    {entry.hours}h
+  </div>
+
+  {entry.loggedAt && (
+    <div className="text-xs text-slate-500">
+      {new Date(entry.loggedAt).toLocaleDateString()}
+    </div>
+  )}
+</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="my-4 border-t border-amber-200" />
+      </div>
+    )}
+
+   <label className="mb-2 block text-sm font-semibold text-amber-900">
+  Additional Hours Logged — {activeTimeframe.name}
+</label>
+    <p className="mb-3 text-xs text-amber-700">
+  Enter only the additional hours worked in this timeframe.
+  Leave 0 if no extra work was done.
+</p>
+
+    <input
+      type="number"
+      step="0.5"
+      min="0"
+      value={form.sprint_hours}
+      onChange={(e) => updateField("sprint_hours", e.target.value)}
+      placeholder="0"
+                    className="h-11 w-40 rounded-xl border border-amber-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
                   />
                 </div>
-              </div>
+              )}
             </div>
           </section>
 
+          {/* Learnings & Blockers */}
           <section>
             <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
               Learnings & Blockers
@@ -429,7 +609,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
             <div className="space-y-5">
               <div>
                 <label className={labelClassName}>Insight</label>
-                <textarea
+                <textarea spellCheck={true}
                   value={form.insight}
                   onChange={(e) => updateField("insight", e.target.value)}
                   rows={5}
@@ -438,31 +618,112 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
+                <label className="flex items-center gap-3 text-base font-medium text-slate-800">
                   <input
                     type="checkbox"
                     checked={form.blocker_flag}
-                    onChange={(e) =>
-                      updateField("blocker_flag", e.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-slate-300"
+                    onChange={(e) => {
+                      updateField("blocker_flag", e.target.checked);
+                      if (!e.target.checked) {
+                        setForm((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                blocker_flag: false,
+                                blocker_title: "",
+                                blocker_description: "",
+                                assigned_to_resolve: "",
+                                blocker_status: "Open",
+                                resolution_notes: "",
+                              }
+                            : prev,
+                        );
+                      }
+                    }}
+                    className="h-4 w-4"
                   />
                   Mark this task as blocked
                 </label>
 
                 {form.blocker_flag && (
-                  <div className="mt-4">
-                    <label className={labelClassName}>
-                      Blocker Description *
-                    </label>
-                    <textarea
-                      value={form.blocker_description}
-                      onChange={(e) =>
-                        updateField("blocker_description", e.target.value)
-                      }
-                      rows={4}
-                      className={textareaClassName}
-                    />
+                  <div className="mt-5 grid gap-5">
+                    <div>
+                      <label className={labelClassName}>Blocker Title *</label>
+                      <input
+                        value={form.blocker_title}
+                        onChange={(e) => updateField("blocker_title", e.target.value)}
+                        placeholder="Enter blocker title"
+                        className={baseFieldClassName}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelClassName}>Blocker Description *</label>
+                      <textarea spellCheck={true}
+                        value={form.blocker_description}
+                        onChange={(e) => updateField("blocker_description", e.target.value)}
+                        placeholder="Describe what is blocking this task"
+                        rows={4}
+                        className={textareaClassName}
+                      />
+                    </div>
+
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <div>
+                        <label className={labelClassName}>Assigned To Resolve *</label>
+                        <select
+                          value={form.assigned_to_resolve}
+                          onChange={(e) => updateField("assigned_to_resolve", e.target.value)}
+                          className={baseFieldClassName}
+                        >
+                          <option value="">Select assignee</option>
+                          {people.map((person) => (
+                            <option key={person.person_id} value={person.name}>
+                              {person.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className={labelClassName}>Blocker Status *</label>
+                        <select
+                          value={form.blocker_status}
+                          onChange={(e) => {
+                            setForm((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    blocker_status: e.target.value,
+                                    resolution_notes:
+                                      e.target.value === "Resolved"
+                                        ? prev.resolution_notes
+                                        : "",
+                                  }
+                                : prev,
+                            );
+                          }}
+                          className={baseFieldClassName}
+                        >
+                          <option value="Open">Open</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Resolved">Resolved</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {form.blocker_status === "Resolved" && (
+                      <div>
+                        <label className={labelClassName}>Resolution Notes *</label>
+                        <textarea spellCheck={true}
+                          value={form.resolution_notes}
+                          onChange={(e) => updateField("resolution_notes", e.target.value)}
+                          placeholder="Add resolution notes"
+                          rows={4}
+                          className={textareaClassName}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -470,6 +731,7 @@ export default function TaskEditForm({ taskId }: { taskId: string }) {
           </section>
         </div>
 
+        {/* Footer */}
         <div className="mt-8 border-t border-slate-200 pt-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
